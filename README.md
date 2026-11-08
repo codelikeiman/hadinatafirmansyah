@@ -114,4 +114,3 @@ archive/        salinan App.jsx lama (tidak di-build)
 - tsParticles v4 hanya menerima registrasi plugin sebelum `load()` pertama. Semua plugin (slim, confetti, fireworks) didaftarkan sekali oleh `ensureEngine()` di `src/lib/particles.js`.
 - Pengukuran layout (AnimatedBeam, shader, canvas) memakai `offsetLeft`/`clientWidth`, bukan `getBoundingClientRect`, supaya tidak terdistorsi transform seperti animasi CRT power-on.
 - Routing berbasis hash (`#/htop`), sehingga bisa di-deploy ke static hosting apa pun (Vercel, Netlify, GitHub Pages) tanpa aturan rewrite.
-# hadinatafirmansyah

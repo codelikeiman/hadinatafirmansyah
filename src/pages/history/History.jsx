@@ -102,7 +102,11 @@ export default function History() {
 
   return (
     <div ref={trackRef} className="relative" style={{ height: `${LENGTH * SCROLL_VH}vh` }}>
-      <div className="sticky top-0 h-[calc(100dvh-30px)] overflow-hidden">
+      {/* Stage sinema:
+          - overflow clip (bukan hidden): tidak menjadi scroll container yang bisa "mengunci" gesture
+          - select-none + touch-callout none: di HP, jari yang berhenti sejenak saat kartu muncul
+            tidak memicu mode seleksi teks / menu long-press yang membuat scroll macet */}
+      <div className="cinema-stage sticky top-0 h-[calc(100dvh-30px)] select-none [-webkit-touch-callout:none]">
         <div ref={stageRef} className="absolute inset-0" />
         {/* letterbox + grain + vignette */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[6vh] bg-black" />
@@ -116,7 +120,7 @@ export default function History() {
           <span className="text-tx2">history | cinema</span>
         </div>
 
-        <div ref={introRef} className="absolute inset-0 grid place-items-center px-6 text-center will-change-transform">
+        <div ref={introRef} className="pointer-events-none absolute inset-0 grid place-items-center px-6 text-center will-change-transform">
           <div>
             <div className="mb-3 text-[11px] tracking-[.5em] text-tx2">A FIRMAN.OS PRODUCTION</div>
             <h1 className="text-[clamp(2rem,7vw,5.5rem)] font-extrabold leading-none text-bright glow-text" style={{ viewTransitionName: "page-title" }}>history | cinema</h1>
@@ -126,8 +130,11 @@ export default function History() {
         </div>
 
         {CHAPTERS.map((c, i) => (
-          <div key={c.year} ref={el => { cardRefs.current[i] = el; }} className={cn("absolute top-1/2 w-[min(440px,86vw)] -translate-y-1/2 will-change-transform", i % 2 ? "right-5 sm:right-[7vw]" : "left-5 sm:left-[7vw]")} style={{ opacity: 0, visibility: "hidden" }}>
-            <div className="border bg-black/70 p-5 backdrop-blur-md sm:p-6" style={{ borderColor: c.color, boxShadow: `0 0 50px ${c.color}33, inset 0 0 40px ${c.color}11` }}>
+          // Kartu chapter murni informasi → tembus event (pointer-events: none) supaya wheel,
+          // trackpad, dan swipe selalu menggulir halaman, tidak "tertahan" di atas kartu.
+          // Tanpa backdrop-filter: lebih ringan (tidak me-blur ulang canvas WebGL tiap frame).
+          <div key={c.year} ref={el => { cardRefs.current[i] = el; }} className={cn("pointer-events-none absolute top-1/2 w-[min(440px,86vw)] -translate-y-1/2 select-none will-change-transform", i % 2 ? "right-5 sm:right-[7vw]" : "left-5 sm:left-[7vw]")} style={{ opacity: 0, visibility: "hidden" }}>
+            <div className="border p-5 sm:p-6" style={{ borderColor: c.color, background: `linear-gradient(135deg, rgba(0,0,0,.86), rgba(0,0,0,.72)), radial-gradient(circle at 0% 0%, ${c.color}22, transparent 60%)`, boxShadow: `0 0 50px ${c.color}33, inset 0 0 40px ${c.color}11` }}>
               <div className="text-[11px] tracking-[.35em]" style={{ color: c.color }}>CHAPTER {String(i + 1).padStart(2, "0")} · {c.where.toUpperCase()}</div>
               <div className="mt-2 text-5xl font-extrabold leading-none sm:text-6xl" style={{ color: c.color, textShadow: `0 0 30px ${c.color}` }}>{c.year}</div>
               <div className="mt-3 text-lg font-bold text-bright">{c.title}</div>
@@ -136,7 +143,7 @@ export default function History() {
                 {c.stack.map(s => <span key={s} className="border px-2 py-0.5 text-[10px] tracking-wider text-bright" style={{ borderColor: `${c.color}88` }}>{s}</span>)}
               </div>
               {i === CHAPTERS.length - 1 && (
-                <div className="mt-5 flex flex-wrap gap-2 text-[11px]">
+                <div className="pointer-events-auto mt-5 flex flex-wrap gap-2 text-[11px]">
                   <Link to="/" className="border border-g bg-g px-3 py-1.5 font-bold text-black no-underline">⌂ HOME</Link>
                   <Link to="/htop" className="border border-line2 px-3 py-1.5 text-tx2 no-underline hover:text-g">▤ htop</Link>
                 </div>
@@ -152,7 +159,7 @@ export default function History() {
             {[0, ...CHAPTERS.map((_, i) => i + 1)].map(k => {
               const t = k === 0 ? 0 : stationTime(k);
               return (
-                <button key={k} type="button" onClick={() => jump(k)} className="group absolute -top-3 -translate-x-1/2 px-1 py-1" style={{ left: `${(t / LENGTH) * 100}%` }} data-cursor={k === 0 ? "intro" : CHAPTERS[k - 1].year}>
+                <button key={k} type="button" onClick={e => { jump(k); e.currentTarget.blur(); }} className="group absolute -top-3 -translate-x-1/2 px-1 py-1" style={{ left: `${(t / LENGTH) * 100}%` }} data-cursor={k === 0 ? "intro" : CHAPTERS[k - 1].year}>
                   <span className={cn("block size-2.5 rotate-45 border transition-colors", active >= k ? "border-g bg-g shadow-[0_0_10px_#00ff41]" : "border-line2 bg-black")} />
                   <span className="absolute left-1/2 top-5 -translate-x-1/2 whitespace-nowrap text-[9px] tracking-widest text-tx2 opacity-70 group-hover:text-g">{k === 0 ? "START" : CHAPTERS[k - 1].year}</span>
                 </button>
@@ -161,7 +168,7 @@ export default function History() {
           </div>
         </div>
 
-        {!ready && <div className="absolute inset-0 grid place-items-center text-[12px] tracking-[.3em] text-tx2">LOADING THEATRE.JS…</div>}
+        {!ready && <div className="pointer-events-none absolute inset-0 grid place-items-center text-[12px] tracking-[.3em] text-tx2">LOADING THEATRE.JS…</div>}
       </div>
     </div>
   );
