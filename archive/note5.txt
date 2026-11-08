@@ -1,0 +1,1362 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+import * as d3 from "d3";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
+
+// â”€â”€â”€ DATA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const SKILLS = [
+  { id: "node.service", desc: "Node.js Runtime", ver: "v20.x LTS", up: "3y 214d", load: 92, pid: 1 },
+  { id: "typescript.service", desc: "Type Safety Layer", ver: "5.x", up: "2y  80d", load: 90, pid: 2 },
+  { id: "express.service", desc: "HTTP Server Framework", ver: "4.x", up: "3y  10d", load: 88, pid: 3 },
+  { id: "prisma.service", desc: "ORM & Query Builder", ver: "5.x", up: "1y 300d", load: 85, pid: 4 },
+  { id: "postgres.service", desc: "Relational Database", ver: "15.x", up: "2y 300d", load: 86, pid: 5 },
+  { id: "redis.service", desc: "In-Memory Cache / Queue", ver: "7.x", up: "2y  45d", load: 83, pid: 6 },
+  { id: "docker.service", desc: "Container Runtime", ver: "24.x", up: "2y 120d", load: 82, pid: 7 },
+  { id: "graphql.service", desc: "Query Language API Layer", ver: "16.x", up: "1y 200d", load: 78, pid: 8 },
+  { id: "kubernetes.service", desc: "Container Orchestration", ver: "1.28.x", up: "1y  50d", load: 70, pid: 9 },
+  { id: "jest.service", desc: "Unit / Integration Testing", ver: "29.x", up: "2y  15d", load: 80, pid: 10 },
+];
+
+const PROJECTS = [
+  {
+    id: "a1b2c3d4", name: "PRPM_SYSTEM", image: "node:20-express-prisma",
+    status: "Up 8 months", cpu: 18, mem: 42, restarts: 0,
+    desc: "Academic research & community service proposal management. Multi-role architecture (admin, ketua_prpm, dosen, reviewer, mahasiswa) with JWT auth, PDF/Excel export, and reviewer workflows.",
+    tags: ["Node.js", "TypeScript", "Prisma", "PostgreSQL", "React", "Redis"],
+    port: "3000/tcp",
+  },
+  {
+    id: "e5f6g7h8", name: "AUTH_GATEWAY", image: "node:20-fastify-jwt",
+    status: "Up 2 years", cpu: 8, mem: 28, restarts: 2,
+    desc: "High-performance auth gateway with RS256 JWT, refresh-token rotation, adaptive rate limiting, and OAuth2. Serves 50k+ req/day with sub-1ms auth overhead.",
+    tags: ["Fastify", "JWT", "Redis", "TypeScript", "PostgreSQL"],
+    port: "4000/tcp",
+  },
+  {
+    id: "i9j0k1l2", name: "DIGITAL_ARCHIVE", image: "flutter:3.19-storage",
+    status: "Up 1 year", cpu: 5, mem: 18, restarts: 1,
+    desc: "Cross-platform mobile document manager. Android storage permission handling across SDK versions, FileProvider config, SQLite local persistence, offline-first architecture.",
+    tags: ["Flutter", "Dart", "SQLite", "Android", "Provider"],
+    port: "â€”",
+  },
+  {
+    id: "m3n4o5p6", name: "STEGANOGRAPH", image: "cpp:17-bmp-lsb",
+    status: "Up 4 months", cpu: 2, mem: 12, restarts: 0,
+    desc: "C++ image steganography toolkit. BMP RLE8 decoder, 24-bitâ†’8-bit quantization via Median Cut algorithm, LSB embedding with capacity analysis and detection-resistance metrics.",
+    tags: ["C++17", "BMP", "Algorithms", "OpenCV"],
+    port: "â€”",
+  },
+];
+
+const GRAPH_NODES = [
+  { id: "Node.js", g: "runtime", lv: 92 }, { id: "TypeScript", g: "lang", lv: 90 },
+  { id: "Express", g: "fw", lv: 88 }, { id: "Fastify", g: "fw", lv: 75 },
+  { id: "PostgreSQL", g: "db", lv: 86 }, { id: "Redis", g: "cache", lv: 83 },
+  { id: "Prisma", g: "orm", lv: 85 }, { id: "Docker", g: "infra", lv: 82 },
+  { id: "Kubernetes", g: "infra", lv: 70 }, { id: "Nginx", g: "infra", lv: 78 },
+  { id: "GraphQL", g: "api", lv: 78 }, { id: "REST", g: "api", lv: 95 },
+  { id: "JWT", g: "auth", lv: 90 }, { id: "RabbitMQ", g: "mq", lv: 72 },
+  { id: "Jest", g: "test", lv: 80 }, { id: "Linux", g: "infra", lv: 88 },
+  { id: "Git", g: "infra", lv: 92 }, { id: "AWS", g: "cloud", lv: 74 },
+];
+
+const GRAPH_LINKS = [
+  ["Node.js", "TypeScript"], ["Node.js", "Express"], ["Node.js", "Fastify"],
+  ["TypeScript", "Prisma"], ["Prisma", "PostgreSQL"], ["Node.js", "Redis"],
+  ["Express", "JWT"], ["Express", "REST"], ["Node.js", "GraphQL"],
+  ["Node.js", "RabbitMQ"], ["Docker", "Kubernetes"], ["Nginx", "Docker"],
+  ["Node.js", "Jest"], ["Docker", "AWS"], ["Linux", "Docker"],
+  ["Linux", "Nginx"], ["Git", "Docker"], ["JWT", "GraphQL"], ["Fastify", "JWT"],
+];
+
+const G_COLORS = {
+  runtime: "#00f0a0", lang: "#4488ff", fw: "#00ccff", db: "#ffaa00",
+  cache: "#ff3055", orm: "#9966ff", infra: "#78c5e0", api: "#00f0a0",
+  auth: "#ff9944", mq: "#ff6677", test: "#aaccff", cloud: "#4499ff",
+};
+
+const BOOT_LINES = [
+  { t: 280, cls: "prompt", text: "$ ssh iman@backend.dev -i ~/.ssh/id_ed25519" },
+  { t: 700, cls: "info", text: "Resolving backend.dev... 203.0.113.42" },
+  { t: 1050, cls: "info", text: "Establishing secure channel (ED25519)..." },
+  { t: 1400, cls: "ok", text: "âœ“ Host authenticity verified. Connection established." },
+  { t: 1750, cls: "dim", text: "â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€" },
+  { t: 2100, cls: "bright", text: "  Welcome to IMAN.OS  v2.4.1-lts  (GNU/Linux 6.6.0)" },
+  { t: 2400, cls: "dim", text: "  System information as of Fri Jun  5 12:42:11 UTC 2026" },
+  { t: 2700, cls: "dim", text: "  Uptime: 4 years  Â·  Load avg: 0.18 0.22 0.19" },
+  { t: 3000, cls: "dim", text: "  Running processes: 24  Â·  Active services: 10" },
+  { t: 3300, cls: "dim", text: "â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€" },
+  { t: 3550, cls: "ok", text: "  System ready. All services nominal." },
+];
+
+const TERM_COMMANDS = {
+  help: () => `\x1b[g]Available commands:\x1b[/g]
+  whoami         â†’ developer profile
+  ls             â†’ list directory
+  cat resume.txt â†’ work experience
+  skills         â†’ loaded service units
+  projects       â†’ running containers
+  contact        â†’ transmission channels
+  hire           â†’ initiate engagement
+  ping           â†’ test latency
+  neofetch       â†’ system information
+  clear          â†’ clear terminal
+  \x1b[d]Tip: use â†‘/â†“ for history, Tab for completion\x1b[/d]`,
+
+  whoami: () => `\x1b[b]iman_hadinata\x1b[/b] â€” backend developer & systems engineer
+Specialization: \x1b[c]distributed systems\x1b[/c], \x1b[c]API design\x1b[/c], \x1b[c]data pipelines\x1b[/c]
+Languages: TypeScript Â· C++ Â· Dart Â· SQL`,
+
+  ls: () => `-rw-r--r--  1 iman dev   4.2K Jun  5 12:00 \x1b[b]resume.txt\x1b[/b]
+-rw-r--r--  1 iman dev  12.8K Jun  5 11:45 \x1b[b]projects.json\x1b[/b]
+-rwxr-xr-x  1 iman dev   2.1K Jun  5 10:30 \x1b[g]deploy.sh\x1b[/g]
+drwxr-xr-x  8 iman dev   4.0K Jun  5 09:00 \x1b[c]node_modules/\x1b[/c]
+-rw-------  1 iman dev     64 May 15 08:00 .env
+-rw-r--r--  1 iman dev    128 Apr 20 14:22 .gitignore`,
+
+  "cat resume.txt": () => `\x1b[b]WORK EXPERIENCE\x1b[/b]
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+2022 â€“ Present  \x1b[g]Backend Developer\x1b[/g]
+                PRPM System â€” Node.js Â· Express Â· Prisma Â· React
+
+2021 â€“ 2022     \x1b[c]Full Stack Developer\x1b[/c]
+                Internal Tools â€” React Â· Laravel Â· MySQL
+
+2020 â€“ 2021     Junior Developer
+                Web Projects â€” PHP Â· JavaScript Â· jQuery
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+\x1b[b]EDUCATION\x1b[/b]
+B.Sc. Computer Science â€” 2024`,
+
+  skills: () => `\x1b[g]â— \x1b[/g]node.service        \x1b[g]active (running)\x1b[/g] since 3y 214d
+\x1b[g]â— \x1b[/g]typescript.service  \x1b[g]active (running)\x1b[/g] since 2y  80d
+\x1b[g]â— \x1b[/g]express.service     \x1b[g]active (running)\x1b[/g] since 3y  10d
+\x1b[g]â— \x1b[/g]prisma.service      \x1b[g]active (running)\x1b[/g] since 1y 300d
+\x1b[g]â— \x1b[/g]postgres.service    \x1b[g]active (running)\x1b[/g] since 2y 300d
+\x1b[g]â— \x1b[/g]redis.service       \x1b[g]active (running)\x1b[/g] since 2y  45d
+\x1b[g]â— \x1b[/g]docker.service      \x1b[g]active (running)\x1b[/g] since 2y 120d
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+\x1b[b]10 loaded, 10 active, 0 failed\x1b[/b]`,
+
+  projects: () => `\x1b[b]CONTAINER ID   IMAGE                   STATUS        NAME\x1b[/b]
+a1b2c3d4       node:20-express-prisma  Up 8 months   \x1b[g]PRPM_SYSTEM\x1b[/g]
+e5f6g7h8       node:20-fastify-jwt     Up 2 years    \x1b[g]AUTH_GATEWAY\x1b[/g]
+i9j0k1l2       flutter:3.19-storage    Up 1 year     \x1b[g]DIGITAL_ARCHIVE\x1b[/g]
+m3n4o5p6       cpp:17-bmp-lsb          Up 4 months   \x1b[g]STEGANOGRAPH\x1b[/g]`,
+
+  contact: () => `\x1b[b]TRANSMISSION CHANNELS\x1b[/b]
+  \x1b[c]email\x1b[/c]    â†’  iman@backend.dev
+  \x1b[c]github\x1b[/c]   â†’  github.com/iman-hadinata
+  \x1b[c]linkedin\x1b[/c] â†’  linkedin.com/in/iman-hadinata
+  \x1b[c]telegram\x1b[/c] â†’  @iman_backend`,
+
+  hire: () => `\x1b[b]INITIATING ENGAGEMENT SEQUENCE\x1b[/b]
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  checking portfolio...   \x1b[g]âœ“ PASS\x1b[/g]
+  verifying skills...     \x1b[g]âœ“ PASS\x1b[/g]
+  reviewing experience... \x1b[g]âœ“ PASS\x1b[/g]
+  checking availability... \x1b[g]âœ“ AVAILABLE\x1b[/g]
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+\x1b[g]â†’ Send an email to iman@backend.dev\x1b[/g]
+  Let's build something great together.`,
+
+  ping: () => `PING backend.dev (203.0.113.42): 56 data bytes
+64 bytes from 203.0.113.42: icmp_seq=0 ttl=64 time=\x1b[g]0.412 ms\x1b[/g]
+64 bytes from 203.0.113.42: icmp_seq=1 ttl=64 time=\x1b[g]0.389 ms\x1b[/g]
+64 bytes from 203.0.113.42: icmp_seq=2 ttl=64 time=\x1b[g]0.401 ms\x1b[/g]
+64 bytes from 203.0.113.42: icmp_seq=3 ttl=64 time=\x1b[g]0.395 ms\x1b[/g]
+â€” backend.dev ping statistics â€”
+4 packets transmitted, 4 received, \x1b[g]0% packet loss\x1b[/g]
+round-trip min/avg/max = 0.389/0.399/0.412 ms`,
+
+  neofetch: () => `\x1b[g]â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ\x1b[/g]          iman@backend.dev
+\x1b[g]â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ\x1b[/g]    â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+\x1b[g]â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ\x1b[/g]\x1b[b]  IMAN.OS  \x1b[/b]\x1b[g]â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ\x1b[/g]    OS: IMAN.OS v2.4.1-lts
+\x1b[g]â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ\x1b[/g]    Kernel: Linux 6.6.0
+\x1b[g]â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ\x1b[/g]    Uptime: 4 years
+\x1b[g]â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆ\x1b[/g]          Shell: bash 5.2.15
+                         Runtime: Node.js 20.x LTS
+                         Packages: 2,847 (npm)
+                         CPU: Ryzen 9 5900X @ 3.7GHz
+                         Memory: 16GB / 32GB DDR5
+                         Languages: TS Â· C++ Â· Dart Â· SQL
+                         Editor: Neovim`,
+
+  sudo: () => `\x1b[r][sudo] password for iman:\x1b[/r]
+iman is not in the sudoers file. This incident will be reported.`,
+
+  vim: () => `\x1b[r]You are now stuck in vim.\x1b[/r]
+Press :q! to exit. Good luck.
+(just kidding â€” type 'clear' to reset)`,
+
+  "git log": () => `\x1b[a]commit f3a2d19\x1b[/a] (HEAD -> main, origin/main)
+Author: Iman Hadinata <iman@backend.dev>
+Date:   Thu Jun  5 12:00:00 2026
+
+    feat: add interactive terminal to portfolio
+
+\x1b[a]commit 9b1c4e7\x1b[/a]
+Author: Iman Hadinata <iman@backend.dev>
+Date:   Wed Jun  4 20:15:00 2026
+
+    perf: optimize PostgreSQL query plans, -40% latency`,
+};
+
+// â”€â”€â”€ STYLES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Barlow+Condensed:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --void:#030407; --d0:#070b14; --d1:#0b1120; --d2:#0f1828; --d3:#152235;
+  --border:#1e2d45; --border2:#2d4460;
+  --g:#00f0a0; --g2:#00c080; --b:#4488ff; --r:#ff3055;
+  --a:#ffaa00; --c:#00ccff; --p:#9966ff;
+  --tx:#7fa8c0; --tx2:#3d6080; --tx3:#1e3550; --bright:#d0e8f8;
+  --fn:'Orbitron',sans-serif; --fm:'JetBrains Mono',monospace;
+  --fb:'Barlow Condensed',sans-serif;
+  --ease:cubic-bezier(.4,0,.2,1); --spring:cubic-bezier(.175,.885,.32,1.275);
+}
+
+html{scroll-behavior:smooth}
+body{background:var(--void);color:var(--tx);font-family:var(--fb);overflow-x:hidden;cursor:none}
+body::after{
+  content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent 0,transparent 2px,rgba(0,0,0,.038) 2px,rgba(0,0,0,.038) 3px);
+  pointer-events:none;z-index:9994;
+}
+::-webkit-scrollbar{width:3px;background:var(--d0)}
+::-webkit-scrollbar-thumb{background:var(--border)}
+
+/* â”€â”€ CURSOR â”€â”€ */
+.cdot{position:fixed;width:8px;height:8px;background:var(--g);border-radius:50%;pointer-events:none;z-index:99999;transform:translate(-50%,-50%);box-shadow:0 0 10px var(--g);transition:width .15s,height .15s}
+.cring{position:fixed;width:32px;height:32px;border:1px solid rgba(0,240,160,.35);border-radius:50%;pointer-events:none;z-index:99998;transform:translate(-50%,-50%);transition:border-color .2s}
+.cdot.big{width:20px;height:20px}
+.cring.big{width:50px;height:50px;border-color:rgba(0,240,160,.6)}
+
+/* â”€â”€ SCROLLBAR PROGRESS â”€â”€ */
+.progress-bar{position:fixed;top:32px;left:0;right:0;height:2px;z-index:1001;pointer-events:none;background:var(--d1)}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--g),var(--c));box-shadow:0 0 8px rgba(0,240,160,.5)}
+
+/* â”€â”€ STATUS BAR â”€â”€ */
+.statusbar{
+  position:fixed;top:0;left:0;right:0;height:32px;
+  background:rgba(7,11,20,.97);border-bottom:1px solid var(--border);
+  backdrop-filter:blur(16px);display:flex;align-items:center;
+  justify-content:space-between;padding:0 18px;z-index:1000;
+  font-family:var(--fm);font-size:10px;letter-spacing:1px;
+}
+.sb-left{display:flex;align-items:center;gap:16px;color:var(--tx2)}
+.sb-brand{color:var(--g);display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:3px}
+.sb-sep{color:var(--border2)}
+.sb-right{display:flex;gap:20px;align-items:center;color:var(--tx2)}
+.sb-metric .k{color:var(--tx3)} .sb-metric .v{color:var(--a)}
+.pulse{width:6px;height:6px;background:var(--g);border-radius:50%;box-shadow:0 0 6px var(--g);animation:p-dot 2s infinite}
+@keyframes p-dot{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* â”€â”€ SIDE PANEL (right, desktop) â”€â”€ */
+.side-panel{
+  position:fixed;top:32px;right:0;width:204px;height:calc(100vh - 32px);
+  background:rgba(7,11,20,.94);border-left:1px solid var(--border);
+  backdrop-filter:blur(12px);z-index:500;padding:14px;
+  display:flex;flex-direction:column;gap:14px;overflow:hidden;
+}
+.sp-hdr{font-family:var(--fm);font-size:8px;letter-spacing:3px;color:var(--tx3);text-transform:uppercase;padding-bottom:6px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.sp-hdr .dot{width:5px;height:5px;background:var(--g);border-radius:50%;animation:p-dot 1.8s infinite}
+.gauge-row{display:flex;align-items:center;gap:6px;font-family:var(--fm);font-size:8px}
+.gauge-lbl{color:var(--tx2);width:36px;flex-shrink:0}
+.gauge-bar{flex:1;height:3px;background:var(--d3);border-radius:2px;overflow:hidden}
+.gauge-fill{height:100%;border-radius:2px;transition:width 1.2s var(--ease)}
+.gauge-val{color:var(--tx);font-size:8px;width:28px;text-align:right;flex-shrink:0}
+.sp-block{font-family:var(--fm);font-size:8px}
+.sp-block-title{color:var(--tx3);letter-spacing:3px;margin-bottom:6px;font-size:7px;text-transform:uppercase}
+.log-box{display:flex;flex-direction:column;gap:2px;font-size:8px;font-family:var(--fm)}
+.log-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.5px;opacity:0;animation:fade-in-line .3s ease forwards}
+@keyframes fade-in-line{to{opacity:1}}
+
+/* â”€â”€ NAV DOTS â”€â”€ */
+.nav-dots{position:fixed;left:10px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;z-index:600}
+.ndot{width:4px;height:4px;background:var(--tx3);border-radius:50%;cursor:none;transition:all .25s;position:relative}
+.ndot.active{background:var(--g);height:18px;border-radius:2px;box-shadow:0 0 6px var(--g)}
+.ndot::after{content:attr(data-label);position:absolute;left:12px;top:50%;transform:translateY(-50%);font-family:var(--fm);font-size:8px;letter-spacing:2px;color:var(--g);white-space:nowrap;opacity:0;transition:opacity .2s;pointer-events:none}
+.ndot:hover::after{opacity:1}
+
+/* â”€â”€ MAIN â”€â”€ */
+.main{margin-top:34px;margin-right:204px;position:relative;z-index:1}
+@media(max-width:1100px){.main{margin-right:0}.side-panel{display:none}}
+
+/* â”€â”€ SECTIONS â”€â”€ */
+.sec{padding:88px 60px;position:relative}
+.sec-win{border:1px solid var(--border);position:relative;overflow:hidden}
+.win-bar{
+  background:var(--d1);border-bottom:1px solid var(--border);
+  padding:8px 14px;display:flex;align-items:center;justify-content:space-between;
+}
+.win-buttons{display:flex;gap:5px}
+.win-btn{width:11px;height:11px;border-radius:50%}
+.win-title{font-family:var(--fm);font-size:9px;letter-spacing:3px;color:var(--tx2);text-transform:uppercase}
+.win-tag{font-family:var(--fm);font-size:8px;letter-spacing:2px;color:var(--g);display:flex;align-items:center;gap:5px}
+
+.sec-label{font-family:var(--fm);font-size:9px;letter-spacing:4px;color:var(--g);opacity:.65;margin-bottom:8px;text-transform:uppercase}
+.sec-title{font-family:var(--fn);font-size:clamp(28px,3.5vw,48px);font-weight:700;letter-spacing:4px;color:var(--bright);margin-bottom:36px;line-height:1.05}
+.sec-title span{color:var(--g)}
+.sec-divider{height:1px;background:linear-gradient(90deg,var(--border),transparent);margin:48px 0}
+
+@media(max-width:900px){.sec{padding:56px 24px}}
+
+/* â”€â”€ HERO â”€â”€ */
+.hero{min-height:calc(100vh - 34px);position:relative;overflow:hidden;display:flex;align-items:center;padding:60px}
+.hero-boot{font-family:var(--fm);font-size:12px;line-height:1.9;margin-bottom:44px}
+.boot-line{opacity:0;transform:translateX(-8px);transition:opacity .28s,transform .28s}
+.boot-line.show{opacity:1;transform:translateX(0)}
+.boot-line .prompt{color:var(--g)}
+.boot-line .ok{color:var(--g);font-weight:600}
+.boot-line .info{color:var(--c)}
+.boot-line .dim{color:var(--tx3)}
+.boot-line .bright{color:var(--bright);font-weight:600;letter-spacing:2px}
+.boot-line .warn{color:var(--a)}
+
+.hero-name-wrap{margin-bottom:20px;overflow:hidden}
+.hero-name{
+  font-family:var(--fn);font-size:clamp(58px,9vw,140px);font-weight:900;
+  letter-spacing:6px;color:var(--bright);line-height:.88;
+  opacity:0;transform:translateY(40px);transition:opacity .7s var(--ease),transform .7s var(--ease);
+  text-shadow:0 0 100px rgba(0,240,160,.18),0 0 40px rgba(68,136,255,.12);
+  position:relative;
+}
+.hero-name.show{opacity:1;transform:translateY(0)}
+.hero-name::before,.hero-name::after{
+  content:attr(data-t);position:absolute;inset:0;pointer-events:none;
+}
+.hero-name::before{animation:glitch-a 8s infinite}
+.hero-name::after{animation:glitch-b 8s infinite .08s}
+
+.hero-role{font-family:var(--fm);font-size:13px;letter-spacing:5px;color:var(--g);margin-bottom:22px;opacity:0;transition:opacity .5s ease .9s}
+.hero-role.show{opacity:1}
+.hero-desc{
+  font-size:15px;line-height:1.85;color:var(--tx2);max-width:500px;
+  font-weight:400;letter-spacing:.4px;margin-bottom:40px;
+  border-left:2px solid var(--border2);padding-left:20px;
+  opacity:0;transition:opacity .5s ease 1.1s;
+}
+.hero-desc.show{opacity:1}
+.hero-desc code{font-family:var(--fm);font-size:12px;color:var(--c)}
+
+.hero-btns{display:flex;gap:14px;flex-wrap:wrap;opacity:0;transition:opacity .5s ease 1.3s}
+.hero-btns.show{opacity:1}
+
+.hero-socials{display:flex;align-items:center;gap:20px;margin-top:40px;opacity:0;transition:opacity .5s ease 1.5s}
+.hero-socials.show{opacity:1}
+.h-soc-link{font-family:var(--fm);font-size:8px;letter-spacing:3px;color:var(--tx2);text-decoration:none;transition:color .2s;text-transform:uppercase}
+.h-soc-link:hover{color:var(--g)}
+
+.hero-metrics{
+  position:absolute;bottom:36px;right:24px;
+  display:flex;flex-direction:column;gap:4px;align-items:flex-end;
+  font-family:var(--fm);font-size:8px;letter-spacing:2px;color:var(--tx3);
+}
+.hero-metrics span{color:var(--g)}
+
+.scroll-hint{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;opacity:.4}
+.scroll-line{width:1px;height:50px;background:linear-gradient(to bottom,var(--g),transparent)}
+.scroll-txt{font-family:var(--fm);font-size:7px;letter-spacing:5px;color:var(--tx2)}
+
+/* â”€â”€ GRID BACKGROUND â”€â”€ */
+.grid-bg{
+  position:absolute;inset:0;
+  background-image:linear-gradient(rgba(0,240,160,.028) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,240,160,.028) 1px,transparent 1px);
+  background-size:48px 48px;
+  transform:perspective(400px) rotateX(18deg) scaleY(2.2);
+  transform-origin:center 40%;
+  animation:grid-scroll 18s linear infinite;
+  pointer-events:none;opacity:.7;
+}
+@keyframes grid-scroll{from{background-position:0 0}to{background-position:0 48px}}
+
+.scan-beam{
+  position:absolute;top:-200px;left:0;right:0;height:160px;
+  background:linear-gradient(to bottom,transparent,rgba(0,240,160,.025),transparent);
+  animation:scan 12s linear infinite;pointer-events:none;
+}
+@keyframes scan{0%{top:-200px}100%{top:110vh}}
+
+/* â”€â”€ BUTTONS â”€â”€ */
+.btn{
+  font-family:var(--fm);font-size:10px;letter-spacing:3px;text-transform:uppercase;
+  cursor:none;display:inline-flex;align-items:center;gap:8px;position:relative;
+  overflow:hidden;border:none;outline:none;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));
+}
+.btn-prim{color:var(--void);background:var(--g);padding:13px 32px;font-weight:700}
+.btn-prim::before{content:'';position:absolute;inset:0;background:var(--c);transform:translateX(-101%);transition:transform .3s var(--ease);z-index:0}
+.btn-prim:hover::before{transform:translateX(0)}
+.btn-prim>*{position:relative;z-index:1}
+.btn-ghost{color:var(--g);background:transparent;border:1px solid var(--border2);padding:12px 30px}
+.btn-ghost:hover{border-color:var(--g);background:rgba(0,240,160,.04)}
+
+/* â”€â”€ ABOUT â”€â”€ */
+.about-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--border)}
+@media(max-width:860px){.about-grid{grid-template-columns:1fr}}
+.htop-pane{border-right:1px solid var(--border);padding:20px;font-family:var(--fm);font-size:10px;overflow:hidden}
+.htop-header{display:flex;gap:24px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.htop-hval{color:var(--bright);font-weight:600}
+.htop-hlbl{color:var(--tx3)}
+.cpu-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.cpu-bar-lbl{color:var(--tx3);width:52px;flex-shrink:0}
+.cpu-track{flex:1;height:10px;background:var(--d3);position:relative;overflow:hidden}
+.cpu-fill{height:100%;transition:width 1.5s var(--ease);display:flex;align-items:center}
+.cpu-val{font-size:8px;position:absolute;right:4px;top:50%;transform:translateY(-50%);color:var(--bright);z-index:1}
+.proc-table{width:100%;font-size:9px;border-collapse:collapse;margin-top:14px}
+.proc-table th{color:var(--tx3);text-align:left;padding:3px 6px;font-weight:400;letter-spacing:2px;font-size:7.5px;border-bottom:1px solid var(--border)}
+.proc-table td{padding:4px 6px;border-bottom:1px solid rgba(30,45,69,.4);transition:background .15s}
+.proc-table tr:hover td{background:rgba(20,35,55,.5)}
+.bio-pane{padding:32px;display:flex;flex-direction:column;gap:24px}
+.bio-p{font-size:14px;line-height:1.9;color:var(--tx2);font-weight:400;letter-spacing:.3px}
+.bio-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:8px}
+.stat-block{border-top:1px solid var(--border2);padding-top:14px}
+.stat-num{font-family:var(--fn);font-size:38px;color:var(--g);letter-spacing:2px;line-height:1}
+.stat-label{font-family:var(--fm);font-size:8px;letter-spacing:3px;color:var(--tx2);text-transform:uppercase;margin-top:5px}
+
+/* â”€â”€ SKILLS TABLE â”€â”€ */
+.services-table{width:100%;border-collapse:collapse;font-family:var(--fm);font-size:10.5px}
+.services-table th{text-align:left;padding:8px 12px;font-size:8px;letter-spacing:3px;color:var(--tx3);text-transform:uppercase;border-bottom:1px solid var(--border)}
+.services-table td{padding:10px 12px;border-bottom:1px solid rgba(30,45,69,.5);transition:background .15s,padding .2s}
+.services-table tr:hover td{background:rgba(15,28,45,.7);padding-left:18px}
+.svc-name{color:var(--bright);font-weight:600;letter-spacing:1px}
+.svc-running{color:var(--g);display:flex;align-items:center;gap:5px;font-size:9px;letter-spacing:1.5px}
+.svc-dot{width:5px;height:5px;background:var(--g);border-radius:50%;flex-shrink:0;animation:p-dot 1.8s infinite}
+.svc-bar{width:72px;height:3px;background:var(--d3);border-radius:2px;overflow:hidden;margin-top:0}
+.svc-fill{height:100%;background:linear-gradient(90deg,var(--b),var(--g));border-radius:2px;transition:width 1.4s var(--ease)}
+.svc-summary{font-family:var(--fm);font-size:9px;color:var(--tx3);margin-top:20px;display:flex;gap:24px}
+.svc-summary .green{color:var(--g)} .svc-summary .red{color:var(--r)}
+
+/* â”€â”€ PROJECTS â”€â”€ */
+.pods-header{font-family:var(--fm);font-size:10px;letter-spacing:2px;color:var(--tx3);padding:10px 16px;border-bottom:1px solid var(--border);background:var(--d0);display:flex;gap:0}
+.pods-header>*{flex:1;min-width:90px}
+.pods-grid{display:flex;flex-direction:column;border:1px solid var(--border)}
+.pod-row-wrap{position:relative;overflow:hidden}
+.pod-row{
+  display:flex;align-items:start;gap:0;padding:16px;
+  border-bottom:1px solid rgba(30,45,69,.5);cursor:none;
+  transition:background .2s;font-family:var(--fm);font-size:10px;
+  position:relative;
+}
+.pod-row::before{content:'';position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,rgba(0,240,160,.08),transparent);transition:width .4s var(--ease)}
+.pod-row:hover{background:rgba(11,17,32,.8)}
+.pod-row:hover::before{width:100%}
+.pod-col{flex:1;min-width:90px;padding-right:12px}
+.pod-id{color:var(--tx3);font-size:9px}
+.pod-name-txt{color:var(--bright);font-weight:600;font-size:11px;letter-spacing:1px}
+.pod-image{color:var(--c);font-size:9px;margin-top:2px}
+.pod-status-badge{color:var(--g);font-size:9px;letter-spacing:1px;display:flex;align-items:center;gap:4px}
+.pod-cpu-bar{width:60px;height:3px;background:var(--d3);border-radius:2px;overflow:hidden;margin-top:4px}
+.pod-cpu-fill{height:100%;background:var(--a);border-radius:2px}
+.pod-detail{
+  background:var(--d1);border-top:1px solid var(--border);
+  padding:0;max-height:0;overflow:hidden;
+  transition:max-height .35s var(--ease),padding .35s;
+  font-family:var(--fb);font-size:13px;color:var(--tx2);line-height:1.8;
+}
+.pod-detail.open{max-height:200px;padding:16px 20px 20px}
+.pod-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.pod-tag{font-family:var(--fm);font-size:8px;letter-spacing:1px;color:var(--b);border:1px solid rgba(68,136,255,.2);padding:2px 7px}
+.pod-expand-hint{font-family:var(--fm);font-size:8px;color:var(--tx3);text-transform:uppercase;letter-spacing:2px;position:absolute;right:16px;top:50%;transform:translateY(-50%);transition:color .2s}
+.pod-row:hover .pod-expand-hint{color:var(--g)}
+
+/* â”€â”€ D3 GRAPH â”€â”€ */
+.graph-container{width:100%;height:460px;background:var(--d0);border:1px solid var(--border);position:relative;overflow:hidden}
+.graph-container svg{width:100%;height:100%}
+.graph-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px;font-family:var(--fm);font-size:8px;letter-spacing:1.5px;color:var(--tx2)}
+.legend-item{display:flex;align-items:center;gap:5px}
+.legend-dot{width:8px;height:8px;border-radius:50%}
+.graph-hint{font-family:var(--fm);font-size:8px;color:var(--tx3);letter-spacing:2px;text-transform:uppercase;position:absolute;bottom:10px;right:12px}
+
+/* â”€â”€ TERMINAL â”€â”€ */
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start}
+@media(max-width:860px){.contact-grid{grid-template-columns:1fr}}
+.terminal{background:var(--void);border:1px solid var(--border);font-family:var(--fm);font-size:12px;position:relative;overflow:hidden}
+.term-bar{background:var(--d1);border-bottom:1px solid var(--border);padding:8px 14px;display:flex;align-items:center;justify-content:space-between}
+.term-btns{display:flex;gap:5px}
+.term-btn{width:11px;height:11px;border-radius:50%}
+.term-title{font-size:9px;letter-spacing:3px;color:var(--tx2)}
+.term-body{padding:14px;height:390px;overflow-y:auto;scrollbar-width:none}
+.term-body::-webkit-scrollbar{display:none}
+.term-out{line-height:1.85;margin-bottom:2px;color:var(--tx2);word-break:break-all}
+.term-out .green{color:var(--g)} .term-out .cyan{color:var(--c)} .term-out .amber{color:var(--a)}
+.term-out .red{color:var(--r)} .term-out .blue{color:var(--b)} .term-out .bright{color:var(--bright)}
+.term-out .dim{color:var(--tx3)}
+.term-irow{display:flex;align-items:center;gap:6px;margin-top:6px}
+.term-prompt{white-space:nowrap;flex-shrink:0}
+.term-inp{
+  background:transparent;border:none;outline:none;color:var(--bright);
+  font-family:var(--fm);font-size:12px;flex:1;caret-color:var(--g);cursor:none;
+}
+.contact-info{display:flex;flex-direction:column;gap:0;border:1px solid var(--border)}
+.cinfo-row{display:flex;align-items:center;gap:0;border-bottom:1px solid var(--border);transition:background .15s}
+.cinfo-row:last-child{border-bottom:none}
+.cinfo-row:hover{background:var(--d1)}
+.cinfo-key{font-family:var(--fm);font-size:8px;letter-spacing:3px;color:var(--tx3);padding:14px 16px;width:100px;flex-shrink:0;text-transform:uppercase;border-right:1px solid var(--border)}
+.cinfo-sep{width:1px;background:var(--border);align-self:stretch}
+.cinfo-val{font-family:var(--fm);font-size:11px;color:var(--g);padding:14px 16px;flex:1;letter-spacing:1px}
+
+/* â”€â”€ FOOTER â”€â”€ */
+.footer{border-top:1px solid var(--border);padding:16px 60px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.ft-txt{font-family:var(--fm);font-size:8px;letter-spacing:2px;color:var(--tx3)}
+.ft-links{display:flex;gap:20px}
+.ft-lnk{font-family:var(--fm);font-size:8px;letter-spacing:3px;color:var(--tx3);text-decoration:none;transition:color .2s;text-transform:uppercase}
+.ft-lnk:hover{color:var(--g)}
+
+/* â”€â”€ GLITCH â”€â”€ */
+@keyframes glitch-a{0%,86%,100%{clip-path:none;opacity:0}87%{clip-path:polygon(0 20%,100% 20%,100% 34%,0 34%);transform:translateX(-4px);color:#0ff;opacity:.7}89%{clip-path:polygon(0 65%,100% 65%,100% 79%,0 79%);transform:translateX(4px);color:#f0f;opacity:.7}91%{opacity:0}}
+@keyframes glitch-b{0%,80%,100%{clip-path:none;opacity:0}81%{clip-path:polygon(0 45%,100% 45%,100% 59%,0 59%);transform:translateX(4px);color:#0ff;opacity:.6}84%{opacity:0}}
+
+/* â”€â”€ REVEAL â”€â”€ */
+.reveal{opacity:0;transform:translateY(20px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
+.reveal.show{opacity:1;transform:translateY(0)}
+
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.blink{animation:blink 1s infinite}
+
+.ticker-wrap{overflow:hidden;background:var(--d0);border-bottom:1px solid var(--border)}
+.ticker-track{display:flex;animation:ticker 32s linear infinite;white-space:nowrap}
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+`;
+
+// â”€â”€â”€ UTILS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function useReveal(threshold = 0.12) {
+  const ref = useRef(null);
+  const [vis, setVis] = useState(false);
+  useEffect(() => {
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setVis(true); obs.disconnect(); } }, { threshold });
+    if (ref.current) obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, []);
+  return [ref, vis];
+}
+
+function useSection(ids) {
+  const [active, setActive] = useState(ids[0]);
+  useEffect(() => {
+    const obs = new IntersectionObserver((entries) => {
+      for (const e of entries) { if (e.isIntersecting) setActive(e.target.id); }
+    }, { threshold: 0.3 });
+    ids.forEach(id => { const el = document.getElementById(id); if (el) obs.observe(el); });
+    return () => obs.disconnect();
+  }, []);
+  return active;
+}
+
+// â”€â”€â”€ CANVAS PARTICLES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function ParticleCanvas() {
+  const ref = useRef(null);
+  const mouse = useRef({ x: -999, y: -999 });
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext("2d");
+    let W, H, raf;
+    const resize = () => { W = c.width = c.offsetWidth; H = c.height = c.offsetHeight; };
+    resize();
+    const pts = Array.from({ length: 55 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() - .5) * .28, vy: (Math.random() - .5) * .28,
+      s: Math.random() * 1.2 + .4,
+    }));
+    const onMM = e => { mouse.current = { x: e.clientX, y: e.clientY }; };
+    window.addEventListener("resize", resize);
+    window.addEventListener("mousemove", onMM);
+    const draw = () => {
+      ctx.clearRect(0, 0, W, H);
+      for (const p of pts) {
+        const dx = p.x - mouse.current.x, dy = p.y - mouse.current.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 110) { const f = (110 - d) / 110 * .45; p.vx += dx / d * f; p.vy += dy / d * f; }
+        p.vx *= .97; p.vy *= .97;
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) { p.x = 0; p.vx *= -1; } if (p.x > W) { p.x = W; p.vx *= -1; }
+        if (p.y < 0) { p.y = 0; p.vy *= -1; } if (p.y > H) { p.y = H; p.vy *= -1; }
+      }
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          const dist = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+          if (dist < 120) {
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(30,90,130,${(1 - dist / 120) * .22})`;
+            ctx.lineWidth = .5;
+            ctx.moveTo(pts[i].x, pts[i].y);
+            ctx.lineTo(pts[j].x, pts[j].y);
+            ctx.stroke();
+          }
+        }
+        ctx.beginPath();
+        ctx.arc(pts[i].x, pts[i].y, pts[i].s, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(0,240,160,.35)";
+        ctx.fill();
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => { window.removeEventListener("resize", resize); window.removeEventListener("mousemove", onMM); cancelAnimationFrame(raf); };
+  }, []);
+  return <canvas ref={ref} style={{ position: "fixed", inset: 0, width: "100%", height: "100%", zIndex: 0, pointerEvents: "none" }} />;
+}
+
+// â”€â”€â”€ CUSTOM CURSOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function Cursor() {
+  const dot = useRef(null), ring = useRef(null);
+  const pos = useRef({ x: -100, y: -100 }), lag = useRef({ x: -100, y: -100 });
+  useEffect(() => {
+    const onMM = e => { pos.current = { x: e.clientX, y: e.clientY }; };
+    const onOver = e => { if (e.target.closest("button,a,input,textarea")) { dot.current?.classList.add("big"); ring.current?.classList.add("big"); } };
+    const onOut = () => { dot.current?.classList.remove("big"); ring.current?.classList.remove("big"); };
+    document.addEventListener("mousemove", onMM);
+    document.addEventListener("mouseover", onOver);
+    document.addEventListener("mouseout", onOut);
+    let r;
+    const tick = () => {
+      lag.current.x += (pos.current.x - lag.current.x) * .1;
+      lag.current.y += (pos.current.y - lag.current.y) * .1;
+      if (dot.current) dot.current.style.cssText = `left:${pos.current.x}px;top:${pos.current.y}px`;
+      if (ring.current) ring.current.style.cssText = `left:${lag.current.x}px;top:${lag.current.y}px`;
+      r = requestAnimationFrame(tick);
+    };
+    r = requestAnimationFrame(tick);
+    return () => { document.removeEventListener("mousemove", onMM); document.removeEventListener("mouseover", onOver); document.removeEventListener("mouseout", onOut); cancelAnimationFrame(r); };
+  }, []);
+  return (<><div ref={dot} className="cdot" /><div ref={ring} className="cring" /></>);
+}
+
+// â”€â”€â”€ STATUS BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function StatusBar() {
+  const [time, setTime] = useState("");
+  const [cpu, setCpu] = useState(18);
+  useEffect(() => {
+    const updateTime = () => setTime(new Date().toLocaleTimeString("en-US", { hour12: false }));
+    updateTime();
+    const t1 = setInterval(updateTime, 1000);
+    const t2 = setInterval(() => setCpu(12 + Math.floor(Math.random() * 16)), 2200);
+    return () => { clearInterval(t1); clearInterval(t2); };
+  }, []);
+  return (
+    <div className="statusbar">
+      <div className="sb-left">
+        <div className="sb-brand"><div className="pulse" />&nbsp;IMAN.OS</div>
+        <span className="sb-sep">â”‚</span>
+        <span>v2.4.1-lts</span>
+        <span className="sb-sep">â”‚</span>
+        <span>backend.dev</span>
+      </div>
+      <div className="sb-right">
+        {[["CPU", `${cpu}%`], ["MEM", "42%"], ["UPTIME", "4y"], ["NODE", "v20.x"]].map(([k, v]) => (
+          <div key={k} className="sb-metric"><span className="k">{k}&nbsp;</span><span className="v">{v}</span></div>
+        ))}
+        <span style={{ fontFamily: "var(--fm)", fontSize: "10px", color: "var(--tx2)", letterSpacing: "1px" }}>{time}</span>
+      </div>
+    </div>
+  );
+}
+
+// â”€â”€â”€ SIDE PANEL (right) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function SidePanel() {
+  const [vals, setVals] = useState({ cpu: [18, 22, 16, 24, 18], mem: 42, net: [1.2, 3.4, 0.8, 5.1, 2.2] });
+  const [logs, setLogs] = useState([]);
+  const LOG_POOL = [
+    { c: "green", t: "GET /api/proposals 200 12ms" }, { c: "green", t: "POST /api/auth/refresh 200 3ms" },
+    { c: "amber", t: "WARN: Redis cache miss key=user:42" }, { c: "green", t: "PUT /api/proposals/17 200 28ms" },
+    { c: "cyan", t: "DB: query executed 8ms (idx)" }, { c: "green", t: "GET /api/users/me 200 6ms" },
+    { c: "amber", t: "RATE_LIMIT: 94/100 req/min" }, { c: "green", t: "DELETE /api/tokens/old 200" },
+    { c: "cyan", t: "CRON: cleanup sessions +0ms" }, { c: "green", t: "GET /api/reports/export 200" },
+  ];
+  const logIdx = useRef(0);
+  useEffect(() => {
+    const t = setInterval(() => {
+      setVals(v => ({
+        cpu: [...v.cpu.slice(1), 12 + Math.floor(Math.random() * 20)],
+        mem: 35 + Math.floor(Math.random() * 20),
+        net: [...v.net.slice(1), Math.random() * 6],
+      }));
+      const entry = LOG_POOL[logIdx.current % LOG_POOL.length];
+      logIdx.current++;
+      setLogs(l => [...l.slice(-10), { ...entry, id: Date.now() }]);
+    }, 1800);
+    return () => clearInterval(t);
+  }, []);
+
+  const cpuAvg = Math.round(vals.cpu.reduce((a, b) => a + b, 0) / vals.cpu.length);
+  const groups = { runtime: "#00f0a0", db: "#ffaa00", cache: "#ff3055", infra: "#78c5e0" };
+
+  return (
+    <div className="side-panel">
+      <div className="sp-hdr">SYSTEM VITALS<div className="dot" /></div>
+
+      {/* CPU */}
+      <div className="sp-block">
+        <div className="sp-block-title">CPU load</div>
+        {["0", "1", "2", "3"].map((c, i) => {
+          const v = 10 + Math.floor((cpuAvg + i * 5) * (0.7 + Math.random() * 0.4));
+          const pct = Math.min(v, 99);
+          const col = pct > 80 ? "var(--r)" : pct > 60 ? "var(--a)" : "var(--g)";
+          return (
+            <div key={c} className="gauge-row">
+              <span className="gauge-lbl" style={{ fontFamily: "var(--fm)", fontSize: "8px", color: "var(--tx2)" }}>CPU{c}</span>
+              <div className="gauge-bar"><div className="gauge-fill" style={{ width: `${pct}%`, background: col }} /></div>
+              <span className="gauge-val" style={{ color: col }}>{pct}%</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* MEM */}
+      <div className="sp-block">
+        <div className="sp-block-title">Memory</div>
+        {[["Used", vals.mem, "var(--b)"], ["Swap", 8, "var(--p)"]].map(([l, v, col]) => (
+          <div key={l} className="gauge-row">
+            <span className="gauge-lbl" style={{ fontFamily: "var(--fm)", fontSize: "8px", color: "var(--tx2)" }}>{l}</span>
+            <div className="gauge-bar"><div className="gauge-fill" style={{ width: `${v}%`, background: col }} /></div>
+            <span className="gauge-val" style={{ color: col }}>{v}%</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Net sparkline */}
+      <div className="sp-block">
+        <div className="sp-block-title">Network I/O <span style={{ color: "var(--g)" }}>{vals.net[vals.net.length - 1].toFixed(1)}MB/s</span></div>
+        <div style={{ height: 36 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={vals.net.map((v, i) => ({ v }))}>
+              <Area type="monotone" dataKey="v" stroke="var(--c)" fill="rgba(0,204,255,.08)" strokeWidth={1} dot={false} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Services */}
+      <div className="sp-block">
+        <div className="sp-block-title">Service groups</div>
+        {Object.entries(groups).map(([g, col]) => (
+          <div key={g} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, fontFamily: "var(--fm)", fontSize: 8 }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: col, flexShrink: 0 }} />
+            <span style={{ color: "var(--tx2)", textTransform: "uppercase", letterSpacing: 1.5 }}>{g}</span>
+            <span style={{ marginLeft: "auto", color: col }}>active</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Log stream */}
+      <div className="sp-block" style={{ flex: 1, overflow: "hidden" }}>
+        <div className="sp-block-title">Access log</div>
+        <div className="log-box">
+          {logs.slice(-8).map((l, i) => (
+            <div key={l.id} className="log-line" style={{ color: `var(--${l.c === "green" ? "g" : l.c === "cyan" ? "c" : l.c === "amber" ? "a" : "r"})`, animationDelay: `${i * 0.05}s` }}>
+              {l.t}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// â”€â”€â”€ NAV DOTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function NavDots({ active }) {
+  const sections = [["hero", "INIT"], ["about", "ABOUT"], ["skills", "SKILLS"], ["projects", "PRJCTS"], ["graph", "STACK"], ["contact", "CONTACT"]];
+  return (
+    <div className="nav-dots">
+      {sections.map(([id, label]) => (
+        <div key={id} className={`ndot${active === id ? " active" : ""}`} data-label={label}
+          onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" })} />
+      ))}
+    </div>
+  );
+}
+
+// â”€â”€â”€ TICKER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function Ticker() {
+  const items = ["AVAILABLE_FOR_HIRE", "â—†", "BACKEND_DEVELOPER", "â—†", "NODE_JS_SPECIALIST", "â—†", "API_ARCHITECT", "â—†", "DISTRIBUTED_SYSTEMS", "â—†", "TYPESCRIPT_FIRST", "â—†", "DATABASE_WHISPERER", "â—†", "DOCKER_NATIVE", "â—†", "OPEN_SOURCE", "â—†"];
+  const all = [...items, ...items];
+  return (
+    <div className="ticker-wrap" style={{ padding: "8px 0" }}>
+      <div className="ticker-track">
+        {all.map((item, i) => (
+          <span key={i} style={{ fontFamily: "var(--fm)", fontSize: "8px", letterSpacing: "3px", color: item === "â—†" ? "var(--g)" : "var(--tx2)", marginRight: "18px" }}>{item}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// â”€â”€â”€ SCROLL PROGRESS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function ScrollProgress() {
+  const [pct, setPct] = useState(0);
+  useEffect(() => {
+    const fn = () => { const t = document.documentElement.scrollHeight - window.innerHeight; setPct(t > 0 ? (window.scrollY / t) * 100 : 0); };
+    window.addEventListener("scroll", fn);
+    return () => window.removeEventListener("scroll", fn);
+  }, []);
+  return <div className="progress-bar"><div className="progress-fill" style={{ width: `${pct}%` }} /></div>;
+}
+
+// â”€â”€â”€ HERO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function Hero() {
+  const [shown, setShown] = useState([]);
+  const [nameVis, setNameVis] = useState(false);
+  const [restVis, setRestVis] = useState(false);
+
+  useEffect(() => {
+    BOOT_LINES.forEach(({ t }, i) => {
+      setTimeout(() => setShown(s => [...s, i]), t);
+    });
+    setTimeout(() => setNameVis(true), 3900);
+    setTimeout(() => setRestVis(true), 4200);
+  }, []);
+
+  return (
+    <section id="hero" className="hero">
+      <div className="grid-bg" />
+      <div className="scan-beam" />
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 40% 50%,rgba(0,240,160,.045) 0%,transparent 60%)", pointerEvents: "none" }} />
+
+      <div style={{ position: "relative", zIndex: 1, maxWidth: "900px" }}>
+        {/* Boot sequence */}
+        <div className="hero-boot">
+          {BOOT_LINES.map(({ cls, text }, i) => (
+            <div key={i} className={`boot-line${shown.includes(i) ? " show" : ""}`}>
+              <span className={cls}>{text}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Name */}
+        <div className="hero-name-wrap">
+          <div className={`hero-name${nameVis ? " show" : ""}`} data-t="IMAN HADINATA">
+            IMAN HADINATA
+          </div>
+        </div>
+
+        <div className={`hero-role${restVis ? " show" : ""}`}>
+          BACKEND DEVELOPER  &amp;  SYSTEMS ENGINEER
+        </div>
+
+        <div className={`hero-desc${restVis ? " show" : ""}`}>
+          I build the infrastructure that never sleeps â€”{" "}
+          <code>REST APIs</code>, <code>distributed systems</code>, and{" "}
+          <code>data pipelines</code> that handle real-world load.
+          TypeScript-first, container-native, obsessed with correctness.
+        </div>
+
+        <div className={`hero-btns${restVis ? " show" : ""}`}>
+          <button className="btn btn-prim" onClick={() => document.getElementById("projects")?.scrollIntoView({ behavior: "smooth" })}>
+            <span>VIEW PROJECTS â–¸</span>
+          </button>
+          <button className="btn btn-ghost" onClick={() => document.getElementById("contact")?.scrollIntoView({ behavior: "smooth" })}>
+            CONTACT
+          </button>
+        </div>
+
+        <div className={`hero-socials${restVis ? " show" : ""}`}>
+          <div style={{ width: 24, height: 1, background: "var(--border2)" }} />
+          {[["GITHUB", "#"], ["LINKEDIN", "#"], ["TELEGRAM", "#"]].map(([l]) => (
+            <a key={l} href="#" className="h-soc-link">{l}</a>
+          ))}
+        </div>
+      </div>
+
+      {restVis && (
+        <div className="hero-metrics">
+          {[["LATENCY", "<1ms"], ["UPTIME", "99.9%"], ["REQ/DAY", "50k+"]].map(([k, v]) => (
+            <div key={k} style={{ fontFamily: "var(--fm)", fontSize: "8px", letterSpacing: "2px", color: "var(--tx3)" }}>
+              {k} <span>{v}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="scroll-hint">
+        <span className="scroll-txt">SCROLL</span>
+        <div className="scroll-line" />
+      </div>
+    </section>
+  );
+}
+
+// â”€â”€â”€ ABOUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function About() {
+  const [ref, vis] = useReveal();
+  const [cpuVals, setCpuVals] = useState({ c0: 18, c1: 24, c2: 14, c3: 31 });
+  useEffect(() => {
+    const t = setInterval(() => setCpuVals({ c0: 12 + ~~(Math.random() * 22), c1: 18 + ~~(Math.random() * 24), c2: 8 + ~~(Math.random() * 18), c3: 22 + ~~(Math.random() * 28) }), 2000);
+    return () => clearInterval(t);
+  }, []);
+
+  const procs = [
+    { pid: 1, name: "node.js", cpu: 18.2, mem: 42.1, user: "iman" },
+    { pid: 2, name: "typescript", cpu: 12.4, mem: 28.3, user: "iman" },
+    { pid: 3, name: "postgresql", cpu: 8.1, mem: 15.7, user: "postgres" },
+    { pid: 4, name: "redis-server", cpu: 3.2, mem: 8.4, user: "redis" },
+    { pid: 5, name: "nginx", cpu: 1.8, mem: 4.2, user: "www" },
+    { pid: 6, name: "docker", cpu: 5.6, mem: 12.0, user: "iman" },
+  ];
+
+  const cpuEntries = [["CPU[0]", cpuVals.c0, "var(--g)"], ["CPU[1]", cpuVals.c1, "var(--c)"], ["Mem", 42, "var(--b)"], ["Swap", 8, "var(--p)"]];
+
+  return (
+    <section id="about" className="sec">
+      <div className="sec-label">// 01 â€” PROCESS VIEW</div>
+      <h2 className="sec-title">ABOUT <span>ME</span></h2>
+      <div ref={ref} className={`reveal${vis ? " show" : ""} about-grid`}>
+        {/* LEFT: htop panel */}
+        <div className="htop-pane">
+          <div className="htop-header">
+            {[["Tasks:", "24"], ["Running:", "6"], ["Sleeping:", "18"], ["Threads:", "142"]].map(([l, v]) => (
+              <div key={l}><span className="htop-hlbl">{l}</span> <span className="htop-hval">{v}</span></div>
+            ))}
+          </div>
+
+          {cpuEntries.map(([lbl, pct, col]) => (
+            <div key={lbl} className="cpu-bar-row">
+              <span className="cpu-bar-lbl">{lbl}</span>
+              <div className="cpu-track" style={{ position: "relative" }}>
+                <div className="cpu-fill" style={{ width: `${pct}%`, background: `linear-gradient(90deg,${col}40,${col})` }} />
+                <span className="cpu-val">{pct}%</span>
+              </div>
+            </div>
+          ))}
+
+          <table className="proc-table">
+            <thead>
+              <tr>{["PID", "USER", "CPU%", "MEM%", "COMMAND"].map(h => <th key={h}>{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {procs.map(p => (
+                <tr key={p.pid}>
+                  <td style={{ color: "var(--tx3)" }}>{p.pid}</td>
+                  <td style={{ color: "var(--c)" }}>{p.user}</td>
+                  <td style={{ color: p.cpu > 15 ? "var(--a)" : "var(--tx)" }}>{p.cpu}</td>
+                  <td style={{ color: "var(--tx)" }}>{p.mem}</td>
+                  <td style={{ color: "var(--g)", fontWeight: 600 }}>{p.name}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div style={{ marginTop: 14, fontSize: 8, color: "var(--tx3)", fontFamily: "var(--fm)", letterSpacing: 1.5, borderTop: "1px solid var(--border)", paddingTop: 10 }}>
+            LOAD AVG: <span style={{ color: "var(--g)" }}>0.18</span> <span style={{ color: "var(--g)" }}>0.22</span> <span style={{ color: "var(--g)" }}>0.19</span>
+            &nbsp;&nbsp;UPTIME: <span style={{ color: "var(--c)" }}>4 years</span>
+          </div>
+        </div>
+
+        {/* RIGHT: bio */}
+        <div className="bio-pane">
+          <div style={{ fontFamily: "var(--fm)", fontSize: 9, letterSpacing: 3, color: "var(--g)", marginBottom: 16, textTransform: "uppercase" }}>
+            $ cat bio.txt
+          </div>
+          <p className="bio-p">
+            Backend developer based in Medan, ID. I spend most of my time designing APIs,
+            tuning database queries, and making sure systems stay up when they're supposed to.
+          </p>
+          <p className="bio-p">
+            Currently building <span style={{ color: "var(--bright)", fontFamily: "var(--fm)", fontSize: 12 }}>PRPM</span> â€” a full-stack proposal management system with Node.js,
+            TypeScript, Prisma, and React. Previously worked on auth gateways, mobile apps,
+            and low-level C++ image processing tools.
+          </p>
+          <p className="bio-p">
+            Outside of work: optimizing Neovim configs, reading about distributed consensus
+            algorithms, and occasionally breaking production on purpose to see how it recovers.
+          </p>
+
+          <div className="bio-stats">
+            {[["4+", "Years shipping"], ["10+", "Projects deployed"], ["50k+", "Req/day served"], ["0", "Prod incidents (this month)"]].map(([n, l]) => (
+              <div key={l} className="stat-block">
+                <div className="stat-num">{n}</div>
+                <div className="stat-label">{l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// â”€â”€â”€ SKILLS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function Skills() {
+  const [ref, vis] = useReveal();
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { if (vis) setTimeout(() => setLoaded(true), 200); }, [vis]);
+
+  return (
+    <section id="skills" className="sec">
+      <div className="sec-label">// 02 â€” SERVICE UNITS</div>
+      <h2 className="sec-title">TECH <span>STACK</span></h2>
+
+      <div ref={ref} className={`reveal${vis ? " show" : ""} sec-win`}>
+        <div className="win-bar">
+          <div className="win-buttons">
+            {["#ff5f56", "#ffbd2e", "#27c93f"].map((c, i) => <div key={i} className="win-btn" style={{ background: c }} />)}
+          </div>
+          <span className="win-title">systemctl list-units --type=service</span>
+          <div className="win-tag"><div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--g)", animation: "p-dot 2s infinite" }} />RUNNING</div>
+        </div>
+
+        <div style={{ padding: "0 0 0 0", overflowX: "auto" }}>
+          <table className="services-table">
+            <thead>
+              <tr>
+                <th>UNIT</th><th>DESCRIPTION</th><th>STATE</th><th>VERSION</th>
+                <th>UPTIME</th><th>PID</th><th>LOAD %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SKILLS.map((s, i) => (
+                <tr key={s.id}>
+                  <td><span className="svc-name">{s.id}</span></td>
+                  <td style={{ color: "var(--tx2)", fontFamily: "var(--fb)", fontSize: 13 }}>{s.desc}</td>
+                  <td>
+                    <div className="svc-running">
+                      <div className="svc-dot" />active
+                    </div>
+                  </td>
+                  <td style={{ color: "var(--c)", fontFamily: "var(--fm)", fontSize: 9 }}>{s.ver}</td>
+                  <td style={{ color: "var(--tx2)", fontFamily: "var(--fm)", fontSize: 9 }}>{s.up}</td>
+                  <td style={{ color: "var(--tx3)", fontFamily: "var(--fm)", fontSize: 9 }}>{s.pid}</td>
+                  <td>
+                    <div className="svc-bar"><div className="svc-fill" style={{ width: loaded ? `${s.load}%` : "0%" }} /></div>
+                    <span style={{ fontFamily: "var(--fm)", fontSize: 8, color: "var(--tx2)", marginTop: 2, display: "block" }}>{s.load}%</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", background: "var(--d0)" }} className="svc-summary">
+          <span><span className="green">10 loaded</span></span>
+          <span><span className="green">10 active</span></span>
+          <span style={{ color: "var(--tx3)" }}>0 failed</span>
+          <span style={{ color: "var(--tx3)" }}>0 inactive</span>
+        </div>
+      </div>
+
+      {/* Toolchain tags */}
+      <div style={{ marginTop: 32 }}>
+        <div style={{ fontFamily: "var(--fm)", fontSize: 8, letterSpacing: 4, color: "var(--tx3)", marginBottom: 14, textTransform: "uppercase" }}>
+          â€” additional toolchain â€”
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {["Git", "Linux", "Nginx", "AWS", "Vercel", "CI/CD", "Terraform", "Zod", "tRPC", "Nx", "pnpm", "Vite"].map(t => (
+            <span key={t} style={{ fontFamily: "var(--fm)", fontSize: 8, letterSpacing: 2, color: "var(--tx2)", border: "1px solid var(--border)", padding: "4px 10px", transition: "all .2s", cursor: "none" }}
+              onMouseEnter={e => { e.target.style.color = "var(--g)"; e.target.style.borderColor = "var(--border2)"; }}
+              onMouseLeave={e => { e.target.style.color = "var(--tx2)"; e.target.style.borderColor = "var(--border)"; }}>
+              {t}
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// â”€â”€â”€ PROJECTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function Projects() {
+  const [ref, vis] = useReveal();
+  const [open, setOpen] = useState(null);
+
+  return (
+    <section id="projects" className="sec">
+      <div className="sec-label">// 03 â€” RUNNING CONTAINERS</div>
+      <h2 className="sec-title">FEATURED <span>PROJECTS</span></h2>
+
+      <div ref={ref} className={`reveal${vis ? " show" : ""}`}>
+        <div style={{ fontFamily: "var(--fm)", fontSize: 9, letterSpacing: 2, color: "var(--tx3)", marginBottom: 6 }}>
+          {'$ docker ps --format "table {{.ID }}\\t{{.Image }}\\t{{.Status }}\\t{{.Names }}"'}
+        </div>
+
+        <div className="pods-grid">
+          {/* Header */}
+          <div className="pods-header" style={{ display: "flex", gap: 0 }}>
+            {["CONTAINER ID", "IMAGE", "STATUS", "CPU%", "MEM%", "NAME"].map(h => (
+              <div key={h} style={{ flex: 1, minWidth: 80, fontFamily: "var(--fm)", fontSize: 8, letterSpacing: 3, color: "var(--tx3)", textTransform: "uppercase" }}>{h}</div>
+            ))}
+          </div>
+
+          {PROJECTS.map(p => (
+            <div key={p.id} className="pod-row-wrap">
+              <div className="pod-row" onClick={() => setOpen(open === p.id ? null : p.id)}>
+                <div className="pod-col"><span className="pod-id">{p.id}</span></div>
+                <div className="pod-col"><span className="pod-image">{p.image}</span></div>
+                <div className="pod-col"><div className="pod-status-badge"><div style={{ width: 5, height: 5, background: "var(--g)", borderRadius: "50%", animation: "p-dot 1.8s infinite" }} />Up</div><div style={{ fontFamily: "var(--fm)", fontSize: 8, color: "var(--tx3)", marginTop: 2 }}>{p.status}</div></div>
+                <div className="pod-col">
+                  <div style={{ fontFamily: "var(--fm)", fontSize: 9, color: p.cpu > 15 ? "var(--a)" : "var(--g)" }}>{p.cpu}%</div>
+                  <div className="pod-cpu-bar"><div className="pod-cpu-fill" style={{ width: `${p.cpu * 4}%` }} /></div>
+                </div>
+                <div className="pod-col">
+                  <div style={{ fontFamily: "var(--fm)", fontSize: 9, color: p.mem > 35 ? "var(--a)" : "var(--b)" }}>{p.mem}%</div>
+                  <div className="pod-cpu-bar"><div className="pod-cpu-fill" style={{ width: `${p.mem}%`, background: "var(--b)" }} /></div>
+                </div>
+                <div className="pod-col"><span className="pod-name-txt">{p.name}</span><div style={{ fontFamily: "var(--fm)", fontSize: 8, color: "var(--tx3)", marginTop: 3 }}>RESTART: {p.restarts}</div></div>
+                <span className="pod-expand-hint">{open === p.id ? "â–² COLLAPSE" : "â–¼ INSPECT"}</span>
+              </div>
+
+              <div className={`pod-detail${open === p.id ? " open" : ""}`}>
+                <div style={{ fontFamily: "var(--fm)", fontSize: 9, color: "var(--tx3)", marginBottom: 8, letterSpacing: 2 }}>
+                  $ docker inspect {p.id} | jq .Config.Description
+                </div>
+                <div style={{ fontSize: 13 }}>{p.desc}</div>
+                <div className="pod-tags">
+                  {p.tags.map(t => <span key={t} className="pod-tag">{t}</span>)}
+                </div>
+                <div style={{ fontFamily: "var(--fm)", fontSize: 8, color: "var(--tx3)", marginTop: 10 }}>PORT: {p.port}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// â”€â”€â”€ TECH GRAPH (D3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function TechGraph() {
+  const svgRef = useRef(null);
+  const [ref, vis] = useReveal();
+  const [hovered, setHovered] = useState(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (!vis || started.current || !svgRef.current) return;
+    started.current = true;
+
+    const el = svgRef.current;
+    const svg = d3.select(el);
+    const W = el.clientWidth || 680;
+    const H = el.clientHeight || 460;
+
+    const nodes = GRAPH_NODES.map(d => ({ ...d }));
+    const links = GRAPH_LINKS.map(([s, t]) => ({ source: s, target: t }));
+
+    const sim = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(links).id(d => d.id).distance(72).strength(.6))
+      .force("charge", d3.forceManyBody().strength(-220))
+      .force("center", d3.forceCenter(W / 2, H / 2))
+      .force("collide", d3.forceCollide(28));
+
+    const linkSel = svg.append("g").selectAll("line").data(links).enter().append("line")
+      .attr("stroke", "rgba(30,70,100,.45)").attr("stroke-width", 1);
+
+    const nodeSel = svg.append("g").selectAll("g").data(nodes).enter().append("g")
+      .call(d3.drag()
+        .on("start", (ev, d) => { if (!ev.active) sim.alphaTarget(.3).restart(); d.fx = d.x; d.fy = d.y; })
+        .on("drag", (ev, d) => { d.fx = ev.x; d.fy = ev.y; })
+        .on("end", (ev, d) => { if (!ev.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+    nodeSel.append("circle")
+      .attr("r", d => 6 + d.lv * 0.1)
+      .attr("fill", d => G_COLORS[d.g])
+      .attr("opacity", .8)
+      .attr("stroke", d => G_COLORS[d.g])
+      .attr("stroke-width", .5)
+      .attr("stroke-opacity", .3);
+
+    nodeSel.append("circle")
+      .attr("r", d => 10 + d.lv * 0.1)
+      .attr("fill", "transparent")
+      .attr("stroke", d => G_COLORS[d.g])
+      .attr("stroke-width", .5)
+      .attr("stroke-opacity", .15);
+
+    nodeSel.append("text")
+      .text(d => d.id)
+      .attr("dy", d => -(8 + d.lv * 0.1 + 4))
+      .attr("text-anchor", "middle")
+      .attr("fill", "#7fa8c0")
+      .attr("font-size", "9px")
+      .attr("font-family", "JetBrains Mono, monospace")
+      .attr("letter-spacing", "1px")
+      .attr("pointer-events", "none");
+
+    sim.on("tick", () => {
+      linkSel.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+      nodeSel.attr("transform", d => `translate(${d.x},${d.y})`);
+    });
+
+    return () => { sim.stop(); svg.selectAll("*").remove(); };
+  }, [vis]);
+
+  const legendGroups = [["runtime", "Runtime"], ["lang", "Language"], ["fw", "Framework"], ["db", "Database"], ["cache", "Cache"], ["infra", "Infra"], ["api", "API"], ["auth", "Auth"], ["mq", "Messaging"], ["test", "Testing"], ["cloud", "Cloud"]];
+
+  return (
+    <section id="graph" className="sec">
+      <div className="sec-label">// 04 â€” DEPENDENCY GRAPH</div>
+      <h2 className="sec-title">TECH <span>ECOSYSTEM</span></h2>
+
+      <div ref={ref} className={`reveal${vis ? " show" : ""} sec-win`}>
+        <div className="win-bar">
+          <div className="win-buttons">{["#ff5f56", "#ffbd2e", "#27c93f"].map((c, i) => <div key={i} className="win-btn" style={{ background: c }} />)}</div>
+          <span className="win-title">graph --layout=force --directed=false</span>
+          <div className="win-tag"><span style={{ color: "var(--tx2)" }}>DRAG</span> nodes to rearrange</div>
+        </div>
+        <div className="graph-container">
+          <svg ref={svgRef} />
+          <div className="graph-hint">D3 FORCE SIMULATION Â· {GRAPH_NODES.length} NODES Â· {GRAPH_LINKS.length} EDGES</div>
+        </div>
+      </div>
+
+      <div className="graph-legend" style={{ marginTop: 14 }}>
+        {legendGroups.map(([g, label]) => (
+          <div key={g} className="legend-item">
+            <div className="legend-dot" style={{ background: G_COLORS[g] }} />
+            <span>{label}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// â”€â”€â”€ TERMINAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function Terminal() {
+  const [lines, setLines] = useState([{ type: "welcome", text: 'IMAN.OS v2.4.1-lts Â· Type "help" for available commands.' }]);
+  const [input, setInput] = useState("");
+  const [hist, setHist] = useState([]);
+  const [hi, setHi] = useState(-1);
+  const bodyRef = useRef(null);
+  const inpRef = useRef(null);
+
+  useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight; }, [lines]);
+
+  const parseAnsi = useCallback((text) => {
+    const parts = [];
+    const re = /\x1b\[([a-z]+)\](.*?)\x1b\[\/\1\]/g;
+    let last = 0, m;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) parts.push({ t: text.slice(last, m.index), c: null });
+      const colorMap = { g: "var(--g)", c: "var(--c)", a: "var(--a)", r: "var(--r)", b: "var(--b)", d: "var(--tx3)" };
+      parts.push({ t: m[2], c: colorMap[m[1]] || (m[1] === "b" ? null : "var(--bright)"), bold: m[1] === "b" });
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) parts.push({ t: text.slice(last), c: null });
+    return parts;
+  }, []);
+
+  const run = useCallback((cmd) => {
+    const c = cmd.trim().toLowerCase();
+    setHist(h => [...h, cmd]); setHi(-1);
+    if (c === "clear") { setLines([]); return; }
+    const fn = TERM_COMMANDS[c];
+    const out = fn ? fn() : `bash: ${cmd}: command not found\nType "help" to see available commands.`;
+    setLines(l => [...l, { type: "cmd", text: cmd }, { type: "out", text: out, isErr: !fn }]);
+  }, []);
+
+  const onKey = useCallback((e) => {
+    if (e.key === "Enter") { if (input.trim()) run(input); setInput(""); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); const ni = Math.min(hi + 1, hist.length - 1); setHi(ni); setInput(hist[hist.length - 1 - ni] || ""); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); const ni = Math.max(hi - 1, -1); setHi(ni); setInput(ni === -1 ? "" : hist[hist.length - 1 - ni] || ""); }
+    else if (e.key === "Tab") { e.preventDefault(); const m = Object.keys(TERM_COMMANDS).find(k => k.startsWith(input)); if (m) setInput(m); }
+  }, [input, hist, hi, run]);
+
+  const renderLine = (line, i) => {
+    if (line.type === "welcome") return <div key={i} className="term-out" style={{ color: "var(--c)" }}>{line.text}</div>;
+    if (line.type === "cmd") return (
+      <div key={i} className="term-out">
+        <span style={{ color: "var(--g)" }}>iman@backend.dev</span>
+        <span style={{ color: "var(--tx3)" }}>:</span>
+        <span style={{ color: "var(--b)" }}>~</span>
+        <span style={{ color: "var(--tx)" }}>$ </span>
+        <span style={{ color: "var(--bright)" }}>{line.text}</span>
+      </div>
+    );
+    const parts = parseAnsi(line.text);
+    return (
+      <div key={i} className="term-out" style={{ color: line.isErr ? "var(--r)" : "var(--tx2)" }}>
+        <pre style={{ margin: 0, fontFamily: "var(--fm)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          {parts.map((p, j) => <span key={j} style={{ color: p.c || undefined, fontWeight: p.bold ? 700 : undefined }}>{p.t}</span>)}
+        </pre>
+      </div>
+    );
+  };
+
+  return (
+    <div className="terminal" onClick={() => inpRef.current?.focus()}>
+      <div className="term-bar">
+        <div className="term-btns">{["#ff5f56", "#ffbd2e", "#27c93f"].map((c, i) => <div key={i} className="term-btn" style={{ background: c }} />)}</div>
+        <span className="term-title">iman@backend.dev â€” bash</span>
+        <span style={{ fontFamily: "var(--fm)", fontSize: 8, color: "var(--tx3)", letterSpacing: 2 }}>5.2.15</span>
+      </div>
+      <div className="term-body" ref={bodyRef}>
+        {lines.map((l, i) => renderLine(l, i))}
+        <div className="term-irow">
+          <span className="term-prompt">
+            <span style={{ color: "var(--g)" }}>iman@backend.dev</span>
+            <span style={{ color: "var(--tx3)" }}>:</span>
+            <span style={{ color: "var(--b)" }}>~</span>
+            <span style={{ color: "var(--tx)" }}>$ </span>
+          </span>
+          <input ref={inpRef} className="term-inp" value={input} onChange={e => setInput(e.target.value)} onKeyDown={onKey} autoComplete="off" spellCheck={false} autoFocus />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// â”€â”€â”€ CONTACT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function Contact() {
+  const [ref, vis] = useReveal();
+  return (
+    <section id="contact" className="sec">
+      <div className="sec-label">// 05 â€” TRANSMISSION</div>
+      <h2 className="sec-title">LET'S <span>CONNECT</span></h2>
+      <div ref={ref} className={`reveal${vis ? " show" : ""} contact-grid`}>
+        <div>
+          <div style={{ fontFamily: "var(--fb)", fontSize: 15, lineHeight: 1.85, color: "var(--tx2)", marginBottom: 32, fontWeight: 400, maxWidth: 420 }}>
+            Open to interesting backend challenges, consulting, or building something from scratch together.
+            Drop a message in the terminal or reach out directly.
+          </div>
+          <div className="contact-info">
+            {[["EMAIL", "iman@backend.dev"], ["GITHUB", "github.com/iman-hadinata"], ["LINKEDIN", "linkedin.com/in/iman"], ["TELEGRAM", "@iman_backend"]].map(([k, v]) => (
+              <div key={k} className="cinfo-row">
+                <div className="cinfo-key">{k}</div>
+                <div className="cinfo-val">{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 24, fontFamily: "var(--fm)", fontSize: 9, color: "var(--tx3)", letterSpacing: 2 }}>
+            RESPONSE TIME: <span style={{ color: "var(--g)" }}>{"< 24h"}</span>
+          </div>
+        </div>
+        <Terminal />
+      </div>
+    </section>
+  );
+}
+
+// â”€â”€â”€ MAIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+export default function Portfolio() {
+  const active = useSection(["hero", "about", "skills", "projects", "graph", "contact"]);
+
+  return (
+    <>
+      <style>{CSS}</style>
+      <ParticleCanvas />
+      <Cursor />
+      <StatusBar />
+      <ScrollProgress />
+      <SidePanel />
+      <NavDots active={active} />
+
+      <div className="main">
+        <Ticker />
+        <Hero />
+        <About />
+        <Skills />
+        <Projects />
+        <TechGraph />
+        <Contact />
+        <footer className="footer">
+          <span className="ft-txt">IMAN.OS v2.4.1 Â© 2026 â€” ALL SYSTEMS NOMINAL</span>
+          <div className="ft-links">{["GH", "LI", "TG", "MAIL"].map(l => <a key={l} href="#" className="ft-lnk">{l}</a>)}</div>
+          <span className="ft-txt">BUILT WITH <span style={{ color: "var(--g)" }}>â—†</span> CAFFEINE</span>
+        </footer>
+      </div>
+    </>
+  );
+}

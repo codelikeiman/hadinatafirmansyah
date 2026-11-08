@@ -1,0 +1,1278 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import * as d3 from "d3";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import asciiArtData from "./asciinator_5Jun_001.json";
+
+// ─── DATA ──────────────────────────────────────────────────────────────────────
+const SKILLS = [
+  { id: "node.service", desc: "Node.js Runtime", ver: "v20.x LTS", up: "3y 214d", load: 92, pid: 1 },
+  { id: "typescript.service", desc: "Type Safety Layer", ver: "5.x", up: "2y  80d", load: 90, pid: 2 },
+  { id: "express.service", desc: "HTTP Server Framework", ver: "4.x", up: "3y  10d", load: 88, pid: 3 },
+  { id: "prisma.service", desc: "ORM & Query Builder", ver: "5.x", up: "1y 300d", load: 85, pid: 4 },
+  { id: "postgres.service", desc: "Relational Database", ver: "15.x", up: "2y 300d", load: 86, pid: 5 },
+  { id: "redis.service", desc: "In-Memory Cache / Queue", ver: "7.x", up: "2y  45d", load: 83, pid: 6 },
+  { id: "docker.service", desc: "Container Runtime", ver: "24.x", up: "2y 120d", load: 82, pid: 7 },
+  { id: "graphql.service", desc: "Query Language API Layer", ver: "16.x", up: "1y 200d", load: 78, pid: 8 },
+  { id: "kubernetes.service", desc: "Container Orchestration", ver: "1.28.x", up: "1y  50d", load: 70, pid: 9 },
+  { id: "jest.service", desc: "Unit / Integration Testing", ver: "29.x", up: "2y  15d", load: 80, pid: 10 },
+];
+
+const PROJECTS = [
+  {
+    id: "a1b2c3d4",
+    name: "PRPM_SYSTEM",
+    image: "node:20-express-prisma",
+    status: "Up 8 months",
+    cpu: 18,
+    mem: 42,
+    restarts: 0,
+    desc: "Academic research & community service proposal management. Multi-role architecture with reviewer workflow, JWT auth, export pipeline, and admin dashboard.",
+    tags: ["Node.js", "TypeScript", "Prisma", "PostgreSQL", "React", "Redis"],
+    port: "3000/tcp",
+  },
+  {
+    id: "e5f6g7h8",
+    name: "AUTH_GATEWAY",
+    image: "node:20-fastify-jwt",
+    status: "Up 2 years",
+    cpu: 8,
+    mem: 28,
+    restarts: 2,
+    desc: "High-performance authentication gateway with RS256 JWT, refresh token rotation, rate limiting, and OAuth2-compatible flow.",
+    tags: ["Fastify", "JWT", "Redis", "TypeScript", "PostgreSQL"],
+    port: "4000/tcp",
+  },
+  {
+    id: "i9j0k1l2",
+    name: "DIGITAL_ARCHIVE",
+    image: "flutter:3.19-storage",
+    status: "Up 1 year",
+    cpu: 5,
+    mem: 18,
+    restarts: 1,
+    desc: "Cross-platform mobile archive manager with SQLite persistence, offline-first pattern, and storage permission compatibility handling.",
+    tags: ["Flutter", "Dart", "SQLite", "Android", "Provider"],
+    port: "—",
+  },
+  {
+    id: "m3n4o5p6",
+    name: "STEGANOGRAPH",
+    image: "cpp:17-bmp-lsb",
+    status: "Up 4 months",
+    cpu: 2,
+    mem: 12,
+    restarts: 0,
+    desc: "C++ image steganography toolkit with BMP parsing, quantization, LSB embedding, and analysis utilities.",
+    tags: ["C++17", "BMP", "Algorithms", "OpenCV"],
+    port: "—",
+  },
+];
+
+const GRAPH_NODES = [
+  { id: "Node.js", g: "runtime", lv: 92 },
+  { id: "TypeScript", g: "lang", lv: 90 },
+  { id: "Express", g: "fw", lv: 88 },
+  { id: "Fastify", g: "fw", lv: 75 },
+  { id: "PostgreSQL", g: "db", lv: 86 },
+  { id: "Redis", g: "cache", lv: 83 },
+  { id: "Prisma", g: "orm", lv: 85 },
+  { id: "Docker", g: "infra", lv: 82 },
+  { id: "Kubernetes", g: "infra", lv: 70 },
+  { id: "Nginx", g: "infra", lv: 78 },
+  { id: "GraphQL", g: "api", lv: 78 },
+  { id: "REST", g: "api", lv: 95 },
+  { id: "JWT", g: "auth", lv: 90 },
+  { id: "RabbitMQ", g: "mq", lv: 72 },
+  { id: "Jest", g: "test", lv: 80 },
+  { id: "Linux", g: "infra", lv: 88 },
+  { id: "Git", g: "infra", lv: 92 },
+  { id: "AWS", g: "cloud", lv: 74 },
+];
+
+const GRAPH_LINKS = [
+  ["Node.js", "TypeScript"], ["Node.js", "Express"], ["Node.js", "Fastify"],
+  ["TypeScript", "Prisma"], ["Prisma", "PostgreSQL"], ["Node.js", "Redis"],
+  ["Express", "JWT"], ["Express", "REST"], ["Node.js", "GraphQL"],
+  ["Node.js", "RabbitMQ"], ["Docker", "Kubernetes"], ["Nginx", "Docker"],
+  ["Node.js", "Jest"], ["Docker", "AWS"], ["Linux", "Docker"],
+  ["Linux", "Nginx"], ["Git", "Docker"], ["JWT", "GraphQL"], ["Fastify", "JWT"],
+];
+
+const G_COLORS = {
+  runtime: "#b7cea2",
+  lang: "#9cb485",
+  fw: "#8aa07f",
+  db: "#cbd0c2",
+  cache: "#d37a8e",
+  orm: "#a9b8b4",
+  infra: "#7b8e82",
+  api: "#b4d6a6",
+  auth: "#96b58d",
+  mq: "#859b74",
+  test: "#dfeaed",
+  cloud: "#afce9e",
+};
+
+const BOOT_LINES = [
+  { t: 250, cls: "prompt", text: "$ ./boot-portfolio --profile julian" },
+  { t: 650, cls: "info", text: "Loading identity modules..." },
+  { t: 980, cls: "info", text: "Mounting hero split-screen layout..." },
+  { t: 1300, cls: "ok", text: "✓ ASCII renderer attached to hero section." },
+  { t: 1650, cls: "dim", text: "────────────────────────────────────────────────────────" },
+  { t: 1950, cls: "bright", text: "  JULIAN.OS  portfolio shell initialized" },
+  { t: 2300, cls: "dim", text: "  Theme synchronized with imported ASCII palette" },
+  { t: 2600, cls: "dim", text: "  Services loaded: about / skills / projects / graph / terminal" },
+  { t: 2950, cls: "dim", text: "────────────────────────────────────────────────────────" },
+  { t: 3250, cls: "ok", text: "  Ready." },
+];
+
+const TERM_COMMANDS = {
+  help: () => `Available commands:
+whoami
+skills
+projects
+contact
+theme
+clear`,
+
+  whoami: () => `Julian Caesar Eben Ezer Simorangkir
+Computer Science student
+Focus: Computer Vision, Image Processing, Unity, Web Development`,
+
+  skills: () =>
+    SKILLS.map(s => `${s.id} — active — ${s.load}%`).join("\n"),
+
+  projects: () =>
+    PROJECTS.map(p => `${p.name} — ${p.status}`).join("\n"),
+
+  contact: () => `Location: Medan, North Sumatra
+Email: your-email@example.com
+GitHub: github.com/your-username`,
+
+  theme: () => `ASCII palette synchronized:
+mint / sage / moss / stone / ice / rose`,
+
+  clear: () => "__CLEAR__",
+};
+
+const MINI_CHART = [
+  { v: 24 }, { v: 32 }, { v: 28 }, { v: 42 }, { v: 36 },
+  { v: 52 }, { v: 48 }, { v: 61 }, { v: 58 }, { v: 70 },
+];
+
+// ─── STYLES ────────────────────────────────────────────────────────────────────
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Barlow+Condensed:wght@400;500;600;700&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050706;
+  --bg2:#0b110d;
+  --panel:#101712;
+  --panel2:#151d17;
+  --panel3:#1a231d;
+  --line:#27362c;
+  --line2:#405445;
+  --mint:#b7cea2;
+  --sage:#8aa07f;
+  --moss:#597551;
+  --forest:#324b2f;
+  --stone:#cbd0c2;
+  --ice:#dfeaed;
+  --rose:#d37a8e;
+  --tx:#e7eddf;
+  --tx2:#b4bcaf;
+  --tx3:#738070;
+  --tx4:#4f5b50;
+  --fn:'Orbitron',sans-serif;
+  --fm:'JetBrains Mono',monospace;
+  --fb:'Barlow Condensed',sans-serif;
+  --ease:cubic-bezier(.4,0,.2,1);
+  --shadow:0 30px 90px rgba(0,0,0,.42);
+}
+
+html{scroll-behavior:smooth}
+body{
+  background:
+    radial-gradient(circle at top right, rgba(183,206,162,.1), transparent 28%),
+    radial-gradient(circle at 10% 8%, rgba(211,122,142,.06), transparent 18%),
+    linear-gradient(180deg,#08100b 0%, #050706 48%, #050706 100%);
+  color:var(--tx2);
+  font-family:var(--fb);
+  overflow-x:hidden;
+}
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background:
+    linear-gradient(rgba(183,206,162,.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(183,206,162,.028) 1px, transparent 1px);
+  background-size:42px 42px;
+  mask-image:linear-gradient(to bottom, rgba(0,0,0,.65), transparent 82%);
+  pointer-events:none;z-index:0;
+}
+a{text-decoration:none;color:inherit}
+button{font:inherit}
+
+::-webkit-scrollbar{width:8px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--line2)}
+
+.progress-bar{
+  position:fixed;top:40px;left:0;right:0;height:2px;z-index:999;
+  background:rgba(255,255,255,.03)
+}
+.progress-fill{
+  height:100%;
+  background:linear-gradient(90deg,var(--sage),var(--mint),var(--ice));
+  box-shadow:0 0 18px rgba(183,206,162,.35);
+}
+
+.statusbar{
+  position:fixed;top:0;left:0;right:0;height:40px;z-index:1000;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 18px;
+  background:rgba(7,10,8,.86);
+  border-bottom:1px solid rgba(183,206,162,.12);
+  backdrop-filter:blur(16px);
+  font-family:var(--fm);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+}
+.sb-left,.sb-right{display:flex;align-items:center;gap:14px}
+.sb-brand{color:var(--mint);font-weight:700}
+.sb-dot{width:8px;height:8px;border-radius:999px;background:var(--moss);box-shadow:0 0 14px rgba(183,206,162,.55)}
+.sb-right span{color:var(--tx3)}
+.sb-right strong{color:var(--stone)}
+
+.side-panel{
+  position:fixed;top:40px;right:0;width:224px;height:calc(100vh - 40px);
+  background:rgba(7,10,8,.88);
+  border-left:1px solid rgba(183,206,162,.1);
+  backdrop-filter:blur(14px);
+  z-index:500;
+  padding:14px;
+  display:flex;flex-direction:column;gap:16px;
+}
+.sp-hdr{
+  font-family:var(--fm);font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--tx3);display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:8px;border-bottom:1px solid rgba(183,206,162,.1)
+}
+.sp-dot{width:6px;height:6px;border-radius:999px;background:var(--mint)}
+.gauge-row{display:flex;align-items:center;gap:8px;font-family:var(--fm);font-size:10px}
+.gauge-lbl{width:40px;flex-shrink:0;color:var(--tx3)}
+.gauge-bar{height:4px;flex:1;background:var(--panel2);overflow:hidden;border-radius:999px}
+.gauge-fill{height:100%;border-radius:999px}
+.gauge-val{width:34px;text-align:right;color:var(--stone)}
+.sp-block{font-family:var(--fm);font-size:10px}
+.sp-block-title{color:var(--tx3);margin-bottom:8px;letter-spacing:.18em;text-transform:uppercase}
+.log-box{display:flex;flex-direction:column;gap:6px}
+.log-line{color:var(--tx2);opacity:.88}
+
+.nav-dots{
+  position:fixed;left:12px;top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:12px;z-index:550
+}
+.ndot{
+  width:5px;height:5px;border-radius:999px;background:var(--tx4);
+  position:relative;transition:.25s ease;
+}
+.ndot.active{height:18px;border-radius:4px;background:var(--mint);box-shadow:0 0 10px rgba(183,206,162,.4)}
+.ndot::after{
+  content:attr(data-label);position:absolute;left:14px;top:50%;transform:translateY(-50%);
+  font-family:var(--fm);font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--mint);opacity:0;transition:.2s ease;white-space:nowrap;
+}
+.ndot:hover::after{opacity:1}
+
+.main{
+  position:relative;z-index:1;
+  margin-top:42px;
+  margin-right:224px;
+}
+.sec{padding:84px 56px;position:relative}
+.sec-label{
+  font-family:var(--fm);font-size:11px;letter-spacing:.28em;
+  color:var(--sage);text-transform:uppercase;margin-bottom:10px
+}
+.sec-title{
+  font-family:var(--fn);font-size:clamp(28px,3.6vw,52px);
+  letter-spacing:.1em;color:var(--tx);margin-bottom:30px;line-height:1.02;text-transform:uppercase
+}
+.sec-title span{color:var(--mint)}
+.sec-win{
+  border:1px solid rgba(183,206,162,.12);
+  background:linear-gradient(180deg, rgba(16,23,18,.92), rgba(10,14,11,.96));
+  box-shadow:var(--shadow);
+}
+.win-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-bottom:1px solid rgba(183,206,162,.1);
+  background:rgba(255,255,255,.02)
+}
+.win-buttons{display:flex;gap:6px}
+.win-btn{width:11px;height:11px;border-radius:999px}
+.win-title,.win-tag{
+  font-family:var(--fm);font-size:10px;letter-spacing:.16em;text-transform:uppercase
+}
+.win-title{color:var(--tx3)}
+.win-tag{color:var(--mint);display:flex;align-items:center;gap:6px}
+.sec-divider{height:1px;background:linear-gradient(90deg,var(--line),transparent);margin:40px 0}
+
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .6s var(--ease), transform .6s var(--ease)}
+.reveal.show{opacity:1;transform:translateY(0)}
+
+.hero{
+  min-height:calc(100vh - 42px);
+  display:grid;
+  grid-template-columns:minmax(320px,1fr) minmax(500px,1.1fr);
+  gap:26px;
+  align-items:stretch;
+  padding:26px 56px 20px;
+}
+.hero-pane{
+  position:relative;
+  min-height:calc(100vh - 96px);
+  border:1px solid rgba(183,206,162,.12);
+  background:linear-gradient(180deg, rgba(16,23,18,.94), rgba(10,14,11,.96));
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.hero-pane::before{
+  content:'';
+  position:absolute;inset:0;
+  background:linear-gradient(135deg, rgba(183,206,162,.05), transparent 30%, transparent 70%, rgba(211,122,142,.04));
+  pointer-events:none;
+}
+.hero-copy{
+  position:relative;z-index:2;height:calc(100% - 49px);
+  display:flex;flex-direction:column;justify-content:center;
+  padding:clamp(24px,4vw,54px);
+}
+.hero-art-wrap{
+  position:relative;z-index:2;height:calc(100% - 49px);
+  display:flex;align-items:center;justify-content:center;
+  padding:16px;
+}
+.eyebrow{
+  font-family:var(--fm);font-size:12px;letter-spacing:.3em;text-transform:uppercase;
+  color:var(--sage);margin-bottom:16px
+}
+.hero-boot{font-family:var(--fm);font-size:12px;line-height:1.8;margin-bottom:26px}
+.boot-line{opacity:0;transform:translateX(-8px);transition:.28s ease}
+.boot-line.show{opacity:1;transform:translateX(0)}
+.boot-line .prompt{color:var(--mint)}
+.boot-line .info{color:var(--ice)}
+.boot-line .ok{color:var(--mint)}
+.boot-line .dim{color:var(--tx4)}
+.boot-line .bright{color:var(--stone)}
+
+.hero-name{
+  font-family:var(--fn);
+  font-size:clamp(58px,7.5vw,116px);
+  line-height:.9;
+  letter-spacing:.08em;
+  color:var(--tx);
+  text-transform:uppercase;
+  margin-bottom:14px;
+}
+.hero-name .accent{display:block;color:var(--mint)}
+.hero-role{
+  font-family:var(--fm);font-size:13px;letter-spacing:.34em;text-transform:uppercase;
+  color:var(--rose);margin-bottom:18px
+}
+.hero-desc{
+  max-width:48ch;
+  font-size:20px;line-height:1.65;color:var(--tx2);
+  border-left:2px solid rgba(183,206,162,.25);padding-left:18px;
+  margin-bottom:26px
+}
+.hero-btns{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:22px}
+.btn{
+  min-height:46px;padding:0 18px;border:1px solid rgba(183,206,162,.16);
+  display:inline-flex;align-items:center;gap:10px;
+  font-family:var(--fm);font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+  transition:.25s ease;
+}
+.btn-prim{background:var(--mint);color:#0a100c;font-weight:700}
+.btn-prim:hover{background:#d6e5c8;transform:translateY(-1px)}
+.btn-ghost{background:rgba(255,255,255,.02);color:var(--stone)}
+.btn-ghost:hover{background:rgba(183,206,162,.06);border-color:rgba(183,206,162,.3)}
+.hero-socials{display:flex;gap:16px;flex-wrap:wrap}
+.h-soc-link{
+  font-family:var(--fm);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--tx3)
+}
+.h-soc-link:hover{color:var(--mint)}
+.hero-metrics{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:28px
+}
+.metric{
+  border:1px solid rgba(183,206,162,.1);background:rgba(183,206,162,.04);padding:14px
+}
+.metric-k{
+  display:block;font-family:var(--fm);font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--tx3);margin-bottom:8px
+}
+.metric-v{
+  color:var(--stone);font-family:var(--fn);font-size:20px;letter-spacing:.08em
+}
+
+.hero-art-shell{
+  width:100%;height:100%;min-height:560px;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid rgba(183,206,162,.1);
+  background:
+    radial-gradient(circle at top, rgba(223,234,237,.08), transparent 28%),
+    linear-gradient(180deg, rgba(21,29,23,.82), rgba(8,11,9,.96));
+  overflow:auto;
+}
+.ascii-stage{width:100%;display:flex;align-items:center;justify-content:center;padding:10px}
+.ascii-scaler{transform-origin:center center;filter:drop-shadow(0 0 18px rgba(183,206,162,.08))}
+.ascii-grid{
+  font-family:var(--fm);font-size:10px;line-height:1;letter-spacing:0;white-space:pre;user-select:none
+}
+.ascii-row{height:1em}
+.ascii-char{display:inline-block;width:.62em;text-align:center}
+.ascii-empty{color:transparent}
+.hero-note{
+  position:absolute;right:16px;bottom:14px;
+  font-family:var(--fm);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  color:rgba(203,208,194,.62)
+}
+
+.about-grid{display:grid;grid-template-columns:1fr 1fr}
+.htop-pane{border-right:1px solid rgba(183,206,162,.1);padding:20px;font-family:var(--fm);font-size:11px}
+.htop-header{display:flex;gap:24px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(183,206,162,.1)}
+.htop-hval{color:var(--stone);font-weight:700}
+.htop-hlbl{color:var(--tx3)}
+.cpu-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.cpu-bar-lbl{width:52px;color:var(--tx3)}
+.cpu-track{position:relative;flex:1;height:10px;background:var(--panel2);overflow:hidden}
+.cpu-fill{height:100%}
+.cpu-val{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  font-size:9px;color:var(--ice)
+}
+.proc-table{width:100%;border-collapse:collapse;margin-top:14px}
+.proc-table th{
+  text-align:left;font-size:9px;color:var(--tx3);padding:6px;
+  border-bottom:1px solid rgba(183,206,162,.1);font-weight:400;letter-spacing:.15em
+}
+.proc-table td{
+  padding:6px;border-bottom:1px solid rgba(183,206,162,.05);font-size:11px
+}
+.bio-pane{padding:30px;display:flex;flex-direction:column;gap:18px}
+.bio-p{font-size:16px;line-height:1.8;color:var(--tx2)}
+.bio-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:4px}
+.stat-block{border-top:1px solid rgba(183,206,162,.12);padding-top:12px}
+.stat-num{font-family:var(--fn);font-size:34px;line-height:1;color:var(--mint)}
+.stat-label{font-family:var(--fm);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--tx3);margin-top:6px}
+
+.services-table{width:100%;border-collapse:collapse}
+.services-table th{
+  text-align:left;padding:12px 16px;font-family:var(--fm);font-size:10px;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--tx3);
+  border-bottom:1px solid rgba(183,206,162,.1)
+}
+.services-table td{
+  padding:14px 16px;border-bottom:1px solid rgba(183,206,162,.06);vertical-align:middle
+}
+.svc-name{font-family:var(--fm);color:var(--stone);font-size:11px}
+.svc-running{display:inline-flex;align-items:center;gap:8px;font-family:var(--fm);font-size:10px;color:var(--mint)}
+.svc-dot{width:8px;height:8px;border-radius:999px;background:var(--mint)}
+.svc-bar{width:120px;height:6px;background:var(--panel2);overflow:hidden;border-radius:999px}
+.svc-fill{height:100%;background:linear-gradient(90deg,var(--moss),var(--mint));border-radius:999px;transition:width 1s ease}
+.svc-summary{
+  display:flex;gap:18px;flex-wrap:wrap;font-family:var(--fm);font-size:11px
+}
+.green{color:var(--mint)}
+
+.project-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.project-card{
+  border:1px solid rgba(183,206,162,.12);
+  background:rgba(255,255,255,.02);
+  padding:18px;transition:.25s ease
+}
+.project-card:hover{border-color:rgba(183,206,162,.22);transform:translateY(-2px)}
+.project-top{display:flex;justify-content:space-between;gap:16px;margin-bottom:12px}
+.project-name{font-family:var(--fn);font-size:22px;letter-spacing:.08em;color:var(--tx)}
+.project-status{font-family:var(--fm);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--mint)}
+.project-desc{font-size:15px;line-height:1.7;color:var(--tx2);margin-bottom:14px}
+.project-tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.project-tag{
+  border:1px solid rgba(183,206,162,.1);padding:5px 10px;
+  font-family:var(--fm);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--tx3)
+}
+.project-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.project-metric{
+  background:rgba(183,206,162,.04);padding:10px;border:1px solid rgba(183,206,162,.08)
+}
+.project-metric .k{
+  display:block;font-family:var(--fm);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--tx3);margin-bottom:5px
+}
+.project-metric .v{color:var(--stone);font-family:var(--fm);font-size:11px}
+
+.graph-wrap{height:520px;padding:14px}
+.graph-box{width:100%;height:100%;border:1px solid rgba(183,206,162,.08);background:rgba(255,255,255,.02)}
+
+.terminal{
+  padding:18px;
+  font-family:var(--fm);
+}
+.term-screen{
+  min-height:360px;
+  max-height:520px;
+  overflow:auto;
+  background:#08100b;
+  border:1px solid rgba(183,206,162,.08);
+  padding:14px;
+}
+.term-line{white-space:pre-wrap;font-size:12px;line-height:1.7;color:var(--tx2);margin-bottom:6px}
+.term-input-row{
+  display:flex;align-items:center;gap:10px;margin-top:14px;
+  border:1px solid rgba(183,206,162,.08);padding:10px 12px;background:rgba(255,255,255,.02)
+}
+.term-prompt{color:var(--mint);font-size:12px}
+.term-input{
+  flex:1;background:transparent;border:none;outline:none;color:var(--stone);
+  font-family:var(--fm);font-size:12px
+}
+
+.footer{
+  padding:36px 56px 60px;color:var(--tx3);font-family:var(--fm);font-size:11px;
+  letter-spacing:.16em;text-transform:uppercase
+}
+
+@media (max-width: 1200px){
+  .main{margin-right:0}
+  .side-panel{display:none}
+}
+@media (max-width: 1100px){
+  .hero{grid-template-columns:1fr}
+  .hero-pane{min-height:auto}
+  .hero-copy{min-height:62vh}
+  .hero-art-wrap{min-height:70vh}
+  .about-grid,.project-grid{grid-template-columns:1fr}
+}
+@media (max-width: 760px){
+  .statusbar{padding:0 12px;font-size:10px}
+  .nav-dots{display:none}
+  .sec{padding:60px 20px}
+  .hero{padding:18px 20px 12px;gap:18px}
+  .hero-copy{padding:22px 18px 28px}
+  .hero-desc{font-size:18px}
+  .hero-metrics{grid-template-columns:1fr}
+  .hero-btns{flex-direction:column}
+  .btn{width:100%;justify-content:center}
+  .hero-art-wrap{padding:10px;min-height:56vh}
+  .hero-art-shell{min-height:420px}
+  .ascii-grid{font-size:8px}
+  .about-grid{grid-template-columns:1fr}
+  .htop-pane{border-right:none;border-bottom:1px solid rgba(183,206,162,.1)}
+  .bio-stats,.project-meta{grid-template-columns:1fr}
+  .services-table th:nth-child(2),
+  .services-table td:nth-child(2),
+  .services-table th:nth-child(4),
+  .services-table td:nth-child(4),
+  .services-table th:nth-child(5),
+  .services-table td:nth-child(5),
+  .services-table th:nth-child(6),
+  .services-table td:nth-child(6){display:none}
+  .footer{padding:26px 20px 48px}
+}
+`;
+
+// ─── HELPERS ───────────────────────────────────────────────────────────────────
+function useReveal() {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setVisible(true);
+      },
+      { threshold: 0.18 }
+    );
+    obs.observe(node);
+    return () => obs.disconnect();
+  }, []);
+
+  return [ref, visible];
+}
+
+function WindowBar({ title, tag = "active" }) {
+  return (
+    <div className="win-bar">
+      <div className="win-buttons">
+        {["#7b8e82", "#b7cea2", "#d37a8e"].map((c, i) => (
+          <div key={i} className="win-btn" style={{ background: c }} />
+        ))}
+      </div>
+      <span className="win-title">{title}</span>
+      <div className="win-tag">
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--mint)" }} />
+        {tag}
+      </div>
+    </div>
+  );
+}
+
+function ASCIIHeroArt({ data }) {
+  const rows = data?.rows ?? [];
+  const columns = data?.columns ?? rows[0]?.text?.length ?? 0;
+
+  const scale = useMemo(() => {
+    if (!columns) return 1;
+    if (columns >= 140) return 0.66;
+    if (columns >= 120) return 0.78;
+    return 1;
+  }, [columns]);
+
+  return (
+    <div className="ascii-stage">
+      <div className="ascii-scaler" style={{ transform: `scale(${scale})` }}>
+        <div className="ascii-grid" aria-label="ASCII art portrait">
+          {rows.map((row, rowIndex) => (
+            <div className="ascii-row" key={rowIndex}>
+              {Array.from(row.text || "").map((char, colIndex) => {
+                const color = row.colors?.[colIndex] ?? undefined;
+                const empty = char === " ";
+                return (
+                  <span
+                    key={`${rowIndex}-${colIndex}`}
+                    className={`ascii-char${empty ? " ascii-empty" : ""}`}
+                    style={{ color }}
+                  >
+                    {char}
+                  </span>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SidePanel() {
+  const gauges = [
+    ["CPU", 42, "linear-gradient(90deg, var(--forest), var(--mint))"],
+    ["MEM", 63, "linear-gradient(90deg, var(--moss), var(--sage))"],
+    ["IO", 27, "linear-gradient(90deg, var(--sage), var(--ice))"],
+  ];
+
+  const logs = [
+    "theme.sync → ascii-palette",
+    "hero.layout → split-screen",
+    "graph.engine → d3 online",
+    "terminal.mode → interactive",
+    "status → nominal",
+  ];
+
+  return (
+    <aside className="side-panel">
+      <div className="sp-hdr">
+        <span>system monitor</span>
+        <span className="sp-dot" />
+      </div>
+
+      <div className="sp-block">
+        <div className="sp-block-title">resource</div>
+        {gauges.map(([label, val, bg]) => (
+          <div className="gauge-row" key={label}>
+            <span className="gauge-lbl">{label}</span>
+            <div className="gauge-bar">
+              <div className="gauge-fill" style={{ width: `${val}%`, background: bg }} />
+            </div>
+            <span className="gauge-val">{val}%</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="sp-block">
+        <div className="sp-block-title">activity log</div>
+        <div className="log-box">
+          {logs.map((line) => (
+            <div className="log-line" key={line}>{line}</div>
+          ))}
+        </div>
+      </div>
+
+      <div className="sp-block">
+        <div className="sp-block-title">trend</div>
+        <div style={{ width: "100%", height: 80 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={MINI_CHART}>
+              <defs>
+                <linearGradient id="miniArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#b7cea2" stopOpacity={0.65} />
+                  <stop offset="100%" stopColor="#b7cea2" stopOpacity={0.04} />
+                </linearGradient>
+              </defs>
+              <Area
+                type="monotone"
+                dataKey="v"
+                stroke="#b7cea2"
+                fill="url(#miniArea)"
+                strokeWidth={2}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function NavDots({ active }) {
+  const items = ["home", "about", "skills", "projects", "graph", "terminal"];
+  return (
+    <div className="nav-dots">
+      {items.map((id) => (
+        <a
+          key={id}
+          href={`#${id}`}
+          className={`ndot ${active === id ? "active" : ""}`}
+          data-label={id}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── SECTIONS ──────────────────────────────────────────────────────────────────
+function Hero() {
+  const [shown, setShown] = useState(0);
+
+  useEffect(() => {
+    const timers = BOOT_LINES.map((line, idx) =>
+      setTimeout(() => setShown(idx + 1), line.t)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  return (
+    <section id="home" className="hero">
+      <div className="hero-pane">
+        <WindowBar title="identity.panel" tag="online" />
+        <div className="hero-copy">
+          <div className="eyebrow">Computer Vision · Game Development · Full Stack</div>
+
+          <div className="hero-boot">
+            {BOOT_LINES.map((line, idx) => (
+              <div key={idx} className={`boot-line ${shown > idx ? "show" : ""}`}>
+                <span className={line.cls}>{line.text}</span>
+              </div>
+            ))}
+          </div>
+
+          <h1 className="hero-name">
+            Julian Caesar
+            <span className="accent">Simorangkir</span>
+          </h1>
+
+          <div className="hero-role">Computer Science Student</div>
+
+          <p className="hero-desc">
+            Saya fokus di computer vision, image processing, Unity game development,
+            dan full-stack web development. Hero sekarang memakai ASCII art milikmu
+            sebagai visual utama dengan layout split-screen agar tampilan portfolio
+            terasa lebih personal dan berbeda.
+          </p>
+
+          <div className="hero-btns">
+            <a href="#projects" className="btn btn-prim">View Projects</a>
+            <a href="#terminal" className="btn btn-ghost">Open Terminal</a>
+          </div>
+
+          <div className="hero-socials">
+            <a className="h-soc-link" href="#about">About</a>
+            <a className="h-soc-link" href="#skills">Skills</a>
+            <a className="h-soc-link" href="#graph">Graph</a>
+            <a className="h-soc-link" href="#terminal">Terminal</a>
+          </div>
+
+          <div className="hero-metrics">
+            <div className="metric">
+              <span className="metric-k">Location</span>
+              <span className="metric-v">Medan</span>
+            </div>
+            <div className="metric">
+              <span className="metric-k">Focus</span>
+              <span className="metric-v">CV / Unity</span>
+            </div>
+            <div className="metric">
+              <span className="metric-k">Theme</span>
+              <span className="metric-v">ASCII Sync</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="hero-pane">
+        <WindowBar title="ascii.hero.render" tag="140x64" />
+        <div className="hero-art-wrap">
+          <div className="hero-art-shell">
+            <ASCIIHeroArt data={asciiArtData} />
+          </div>
+        </div>
+        <div className="hero-note">Imported colored ASCII art</div>
+      </div>
+    </section>
+  );
+}
+
+function About() {
+  const [ref, vis] = useReveal();
+
+  const cpuEntries = [
+    ["cv", 84, "#b7cea2"],
+    ["web", 76, "#8aa07f"],
+    ["unity", 68, "#dfeaed"],
+    ["ml", 59, "#d37a8e"],
+  ];
+
+  const procs = [
+    { pid: 101, user: "julian", cpu: 19, mem: 8.2, name: "vision.pipeline" },
+    { pid: 117, user: "julian", cpu: 11, mem: 5.8, name: "portfolio.react" },
+    { pid: 128, user: "julian", cpu: 7, mem: 4.1, name: "unity.editor" },
+    { pid: 144, user: "julian", cpu: 5, mem: 2.7, name: "research.docs" },
+  ];
+
+  return (
+    <section id="about" className="sec">
+      <div className="sec-label">// 01 — profile</div>
+      <h2 className="sec-title">About <span>Me</span></h2>
+
+      <div ref={ref} className={`reveal ${vis ? "show" : ""} sec-win`}>
+        <WindowBar title="cat profile.sys" tag="loaded" />
+
+        <div className="about-grid">
+          <div className="htop-pane">
+            <div className="htop-header">
+              <div>
+                <div className="htop-hval">4+</div>
+                <div className="htop-hlbl">years coding</div>
+              </div>
+              <div>
+                <div className="htop-hval">10+</div>
+                <div className="htop-hlbl">projects built</div>
+              </div>
+              <div>
+                <div className="htop-hval">active</div>
+                <div className="htop-hlbl">learning mode</div>
+              </div>
+            </div>
+
+            {cpuEntries.map(([lbl, pct, col]) => (
+              <div key={lbl} className="cpu-bar-row">
+                <span className="cpu-bar-lbl">{lbl}</span>
+                <div className="cpu-track">
+                  <div className="cpu-fill" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${col}33, ${col})` }} />
+                  <span className="cpu-val">{pct}%</span>
+                </div>
+              </div>
+            ))}
+
+            <table className="proc-table">
+              <thead>
+                <tr>
+                  {["PID", "USER", "CPU%", "MEM%", "COMMAND"].map((h) => <th key={h}>{h}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {procs.map((p) => (
+                  <tr key={p.pid}>
+                    <td style={{ color: "var(--tx3)" }}>{p.pid}</td>
+                    <td style={{ color: "var(--ice)" }}>{p.user}</td>
+                    <td style={{ color: p.cpu > 15 ? "var(--rose)" : "var(--tx)" }}>{p.cpu}</td>
+                    <td style={{ color: "var(--tx)" }}>{p.mem}</td>
+                    <td style={{ color: "var(--mint)", fontWeight: 700 }}>{p.name}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="bio-pane">
+            <p className="bio-p">
+              Saya mahasiswa computer science yang banyak mengerjakan project image processing,
+              computer vision, dan pengembangan aplikasi berbasis React maupun Unity.
+            </p>
+            <p className="bio-p">
+              Saya suka membangun sistem yang terasa teknis tetapi tetap rapi secara visual,
+              jadi portfolio ini sengaja menggabungkan nuansa terminal dengan karya ASCII art
+              sebagai identitas utama di hero section.
+            </p>
+            <p className="bio-p">
+              Selain web, saya juga tertarik pada penelitian, eksperimen algoritma, pengolahan citra,
+              serta implementasi project yang bisa benar-benar dijalankan.
+            </p>
+
+            <div className="bio-stats">
+              {[
+                ["CV", "Computer Vision"],
+                ["IMG", "Image Processing"],
+                ["UNITY", "Game Development"],
+                ["WEB", "React Projects"],
+              ].map(([n, l]) => (
+                <div key={l} className="stat-block">
+                  <div className="stat-num">{n}</div>
+                  <div className="stat-label">{l}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Skills() {
+  const [ref, vis] = useReveal();
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (vis) {
+      const t = setTimeout(() => setLoaded(true), 160);
+      return () => clearTimeout(t);
+    }
+  }, [vis]);
+
+  return (
+    <section id="skills" className="sec">
+      <div className="sec-label">// 02 — service units</div>
+      <h2 className="sec-title">Tech <span>Stack</span></h2>
+
+      <div ref={ref} className={`reveal ${vis ? "show" : ""} sec-win`}>
+        <WindowBar title="systemctl list-units --type=service" tag="running" />
+
+        <div style={{ overflowX: "auto" }}>
+          <table className="services-table">
+            <thead>
+              <tr>
+                <th>Unit</th>
+                <th>Description</th>
+                <th>State</th>
+                <th>Version</th>
+                <th>Uptime</th>
+                <th>PID</th>
+                <th>Load %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SKILLS.map((s) => (
+                <tr key={s.id}>
+                  <td><span className="svc-name">{s.id}</span></td>
+                  <td style={{ color: "var(--tx2)", fontSize: 14 }}>{s.desc}</td>
+                  <td>
+                    <div className="svc-running">
+                      <div className="svc-dot" />
+                      active
+                    </div>
+                  </td>
+                  <td style={{ color: "var(--ice)", fontFamily: "var(--fm)", fontSize: 11 }}>{s.ver}</td>
+                  <td style={{ color: "var(--tx2)", fontFamily: "var(--fm)", fontSize: 11 }}>{s.up}</td>
+                  <td style={{ color: "var(--tx3)", fontFamily: "var(--fm)", fontSize: 11 }}>{s.pid}</td>
+                  <td>
+                    <div className="svc-bar">
+                      <div className="svc-fill" style={{ width: loaded ? `${s.load}%` : "0%" }} />
+                    </div>
+                    <span style={{ fontFamily: "var(--fm)", fontSize: 10, color: "var(--tx3)", marginTop: 4, display: "block" }}>{s.load}%</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{ padding: "12px 16px", borderTop: "1px solid rgba(183,206,162,.1)", background: "var(--bg2)" }} className="svc-summary">
+          <span><span className="green">10 loaded</span></span>
+          <span><span className="green">10 active</span></span>
+          <span style={{ color: "var(--tx3)" }}>0 failed</span>
+          <span style={{ color: "var(--tx3)" }}>palette synced</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Projects() {
+  const [ref, vis] = useReveal();
+
+  return (
+    <section id="projects" className="sec">
+      <div className="sec-label">// 03 — deployments</div>
+      <h2 className="sec-title">Selected <span>Projects</span></h2>
+
+      <div ref={ref} className={`reveal ${vis ? "show" : ""}`}>
+        <div className="project-grid">
+          {PROJECTS.map((p) => (
+            <div key={p.id} className="project-card">
+              <div className="project-top">
+                <div>
+                  <div className="project-name">{p.name}</div>
+                  <div style={{ fontFamily: "var(--fm)", fontSize: 10, letterSpacing: ".16em", color: "var(--tx3)", textTransform: "uppercase", marginTop: 6 }}>
+                    {p.image}
+                  </div>
+                </div>
+                <div className="project-status">{p.status}</div>
+              </div>
+
+              <p className="project-desc">{p.desc}</p>
+
+              <div className="project-tags">
+                {p.tags.map((tag) => (
+                  <span key={tag} className="project-tag">{tag}</span>
+                ))}
+              </div>
+
+              <div className="project-meta">
+                <div className="project-metric">
+                  <span className="k">Container ID</span>
+                  <span className="v">{p.id}</span>
+                </div>
+                <div className="project-metric">
+                  <span className="k">CPU</span>
+                  <span className="v">{p.cpu}%</span>
+                </div>
+                <div className="project-metric">
+                  <span className="k">MEM</span>
+                  <span className="v">{p.mem}%</span>
+                </div>
+                <div className="project-metric">
+                  <span className="k">Port</span>
+                  <span className="v">{p.port}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GraphSection() {
+  const [ref, vis] = useReveal();
+  const svgRef = useRef(null);
+
+  useEffect(() => {
+    if (!vis || !svgRef.current) return;
+
+    const el = svgRef.current;
+    const width = el.clientWidth || 900;
+    const height = el.clientHeight || 480;
+
+    d3.select(el).selectAll("*").remove();
+
+    const svg = d3.select(el).append("svg").attr("width", width).attr("height", height);
+
+    const nodes = GRAPH_NODES.map((d) => ({ ...d }));
+    const links = GRAPH_LINKS.map(([source, target]) => ({ source, target }));
+
+    const simulation = d3.forceSimulation(nodes)
+      .force("link", d3.forceLink(links).id((d) => d.id).distance(90))
+      .force("charge", d3.forceManyBody().strength(-240))
+      .force("center", d3.forceCenter(width / 2, height / 2));
+
+    const link = svg.append("g")
+      .attr("stroke", "rgba(183,206,162,.18)")
+      .selectAll("line")
+      .data(links)
+      .join("line")
+      .attr("stroke-width", 1.2);
+
+    const node = svg.append("g")
+      .selectAll("circle")
+      .data(nodes)
+      .join("circle")
+      .attr("r", (d) => Math.max(8, d.lv / 6))
+      .attr("fill", (d) => G_COLORS[d.g] || "#b7cea2")
+      .attr("stroke", "#08100b")
+      .attr("stroke-width", 2);
+
+    const label = svg.append("g")
+      .selectAll("text")
+      .data(nodes)
+      .join("text")
+      .text((d) => d.id)
+      .attr("fill", "#dfeaed")
+      .attr("font-size", 11)
+      .attr("font-family", "JetBrains Mono");
+
+    simulation.on("tick", () => {
+      link
+        .attr("x1", (d) => d.source.x)
+        .attr("y1", (d) => d.source.y)
+        .attr("x2", (d) => d.target.x)
+        .attr("y2", (d) => d.target.y);
+
+      node
+        .attr("cx", (d) => d.x)
+        .attr("cy", (d) => d.y);
+
+      label
+        .attr("x", (d) => d.x + 12)
+        .attr("y", (d) => d.y + 4);
+    });
+
+    return () => simulation.stop();
+  }, [vis]);
+
+  return (
+    <section id="graph" className="sec">
+      <div className="sec-label">// 04 — relation graph</div>
+      <h2 className="sec-title">Skill <span>Network</span></h2>
+
+      <div ref={ref} className={`reveal ${vis ? "show" : ""} sec-win`}>
+        <WindowBar title="graph.skill-map --engine=d3" tag="rendered" />
+        <div className="graph-wrap">
+          <div ref={svgRef} className="graph-box" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TerminalSection() {
+  const [ref, vis] = useReveal();
+  const [lines, setLines] = useState([
+    "Terminal initialized.",
+    "Type 'help' to list available commands.",
+  ]);
+  const [value, setValue] = useState("");
+  const screenRef = useRef(null);
+
+  useEffect(() => {
+    if (screenRef.current) {
+      screenRef.current.scrollTop = screenRef.current.scrollHeight;
+    }
+  }, [lines]);
+
+  const runCommand = useCallback((raw) => {
+    const cmd = raw.trim();
+    if (!cmd) return;
+
+    setLines((prev) => [...prev, `$ ${cmd}`]);
+
+    const action = TERM_COMMANDS[cmd];
+    if (!action) {
+      setLines((prev) => [...prev, `Command not found: ${cmd}`]);
+      return;
+    }
+
+    const result = action();
+    if (result === "__CLEAR__") {
+      setLines([]);
+    } else {
+      setLines((prev) => [...prev, result]);
+    }
+  }, []);
+
+  return (
+    <section id="terminal" className="sec">
+      <div className="sec-label">// 05 — shell</div>
+      <h2 className="sec-title">Interactive <span>Terminal</span></h2>
+
+      <div ref={ref} className={`reveal ${vis ? "show" : ""} sec-win`}>
+        <WindowBar title="portfolio.shell" tag="interactive" />
+
+        <div className="terminal">
+          <div ref={screenRef} className="term-screen">
+            {lines.map((line, idx) => (
+              <div key={idx} className="term-line">{line}</div>
+            ))}
+          </div>
+
+          <div className="term-input-row">
+            <span className="term-prompt">$</span>
+            <input
+              className="term-input"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  runCommand(value);
+                  setValue("");
+                }
+              }}
+              placeholder="type help"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── APP ───────────────────────────────────────────────────────────────────────
+export default function PortfolioMerged() {
+  const [progress, setProgress] = useState(0);
+  const [active, setActive] = useState("home");
+
+  useEffect(() => {
+    const onScroll = () => {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const pct = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+      setProgress(pct);
+
+      const ids = ["home", "about", "skills", "projects", "graph", "terminal"];
+      let current = "home";
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const top = el.getBoundingClientRect().top;
+        if (top <= 180) current = id;
+      }
+      setActive(current);
+    };
+
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  return (
+    <>
+      <style>{CSS}</style>
+
+      <div className="progress-bar">
+        <div className="progress-fill" style={{ width: `${progress}%` }} />
+      </div>
+
+      <header className="statusbar">
+        <div className="sb-left">
+          <span className="sb-dot" />
+          <span className="sb-brand">Julian Caesar Eben Ezer Simorangkir</span>
+        </div>
+
+        <div className="sb-right">
+          <span><strong>Mode</strong> Portfolio</span>
+          <span><strong>Theme</strong> ASCII Sync</span>
+        </div>
+      </header>
+
+      <SidePanel />
+      <NavDots active={active} />
+
+      <main className="main">
+        <Hero />
+        <About />
+        <Skills />
+        <Projects />
+        <GraphSection />
+        <TerminalSection />
+      </main>
+
+      <footer className="footer">
+        Portfolio system online · hero merged with custom ASCII art
+      </footer>
+    </>
+  );
+}

@@ -1,0 +1,200 @@
+/* ============================================================================
+   base.css — design tokens, reset global, Tailwind v4 (tanpa preflight),
+   View Transitions, dan util animasi untuk komponen Magic UI / Aceternity.
+   ========================================================================== */
+
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "lenis/dist/lenis.css";
+
+/* Catatan lama (archive/) berisi ribuan class name — jangan ikut dipindai. */
+@source not "../../archive";
+
+@theme {
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-void: #000;
+  --color-d0: #010b04;
+  --color-d1: #03140a;
+  --color-d2: #051a0d;
+  --color-d3: #072210;
+  --color-line: #0c4a20;
+  --color-line2: #14802f;
+  --color-g: #00ff41;
+  --color-g2: #00cc34;
+  --color-c: #39ff14;
+  --color-b: #00f0ff;
+  --color-tx: #2dff6a;
+  --color-tx2: #1fa64a;
+  --color-tx3: #0d4d22;
+  --color-bright: #c2ffd3;
+  --color-amber: #ffd400;
+  --color-red: #ff003c;
+  --color-violet: #b26bff;
+
+  --ease-crt: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-marquee: marquee var(--duration, 40s) linear infinite;
+  --animate-marquee-vertical: marquee-vertical var(--duration, 40s) linear infinite;
+  --animate-border-beam: border-beam calc(var(--duration, 8) * 1s) infinite linear;
+  --animate-meteor: meteor var(--meteor-duration, 6s) linear infinite;
+  --animate-retro-grid: retro-grid 14s linear infinite;
+  --animate-spotlight: spotlight 2.2s ease 0.6s 1 forwards;
+  --animate-orbit: orbit calc(var(--duration, 20) * 1s) linear infinite;
+  --animate-ripple: ripple var(--ripple-duration, 3.4s) ease calc(var(--i, 0) * 0.22s) infinite;
+  --animate-shine: shine var(--shine-duration, 12s) linear infinite;
+  --animate-flicker: flicker 3.2s steps(1) infinite;
+  --animate-scan: scan-y 4s linear infinite;
+  --animate-aurora: aurora 18s ease-in-out infinite alternate;
+  --animate-glitch: glitch-x 2.8s steps(2) infinite;
+
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(calc(-100% - var(--gap))); }
+  }
+  @keyframes marquee-vertical {
+    from { transform: translateY(0); }
+    to { transform: translateY(calc(-100% - var(--gap))); }
+  }
+  @keyframes border-beam {
+    100% { offset-distance: 100%; }
+  }
+  @keyframes meteor {
+    0% { transform: rotate(var(--angle, 215deg)) translateX(0); opacity: 1; }
+    70% { opacity: 1; }
+    100% { transform: rotate(var(--angle, 215deg)) translateX(-600px); opacity: 0; }
+  }
+  @keyframes retro-grid {
+    0% { transform: translateY(-50%); }
+    100% { transform: translateY(0); }
+  }
+  @keyframes spotlight {
+    0% { opacity: 0; transform: translate(-72%, -62%) scale(0.5); }
+    100% { opacity: 1; transform: translate(-50%, -40%) scale(1); }
+  }
+  @keyframes orbit {
+    0% { transform: rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg)); }
+    100% { transform: rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg - 360deg)); }
+  }
+  @keyframes ripple {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(0.9); }
+  }
+  @keyframes shine {
+    0% { background-position: 0% 0%; }
+    50% { background-position: 100% 100%; }
+    100% { background-position: 0% 0%; }
+  }
+  @keyframes flicker {
+    0%, 100% { opacity: 1; }
+    41% { opacity: 0.55; }
+    43% { opacity: 1; }
+    77% { opacity: 0.8; }
+  }
+  @keyframes scan-y {
+    from { transform: translateY(-100%); }
+    to { transform: translateY(100%); }
+  }
+  @keyframes aurora {
+    0% { background-position: 50% 50%, 50% 50%; }
+    100% { background-position: 350% 50%, 350% 50%; }
+  }
+  @keyframes glitch-x {
+    0%, 92%, 100% { transform: none; clip-path: none; }
+    93% { transform: translateX(-3px); clip-path: inset(20% 0 55% 0); }
+    96% { transform: translateX(3px); clip-path: inset(60% 0 12% 0); }
+  }
+}
+
+/* ── TOKENS (sumber kebenaran tunggal; theme.css tetap boleh override) ─────── */
+:root {
+  --void: #000; --d0: #010b04; --d1: #03140a; --d2: #051a0d; --d3: #072210;
+  --border: #0c4a20; --border2: #14802f;
+  --g: #00ff41; --g2: #00cc34; --c: #39ff14; --b: #00f0ff;
+  --r: #ff3b3b; --a: #ffb000; --p: #b26bff; --y: #ffd400;
+  --tx: #2dff6a; --tx2: #1fa64a; --tx3: #0d4d22; --bright: #c2ffd3;
+  --fn: 'JetBrains Mono', monospace; --fm: 'JetBrains Mono', monospace; --fb: 'JetBrains Mono', monospace;
+  --ease: cubic-bezier(.4, 0, .2, 1); --spring: cubic-bezier(.175, .885, .32, 1.275);
+  --ease-out-expo: cubic-bezier(.16, 1, .3, 1);
+  --vt-x: 50vw; --vt-y: 50vh;
+  color-scheme: dark;
+}
+
+/* ── RESET ─────────────────────────────────────────────────────────────────
+   Di dalam @layer base supaya utility Tailwind (layer utilities) tetap menang,
+   sementara CSS komponen lama (unlayered: theme.css, home.css) juga menang. */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; border-width: 0; border-style: solid; border-color: var(--border); }
+  /* clip (bukan hidden): mencegah scroll horizontal programatik pada dokumen */
+  html, body { overflow-x: hidden; overflow-x: clip; }
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  body { background: var(--void); color: var(--tx); font-family: var(--fm); line-height: 1.5; min-height: 100dvh; }
+  #root { max-width: 100%; text-align: left; }
+  button, input, textarea, select { font: inherit; color: inherit; background: none; }
+  button { cursor: pointer; }
+  a { color: inherit; }
+  img, video { display: block; max-width: 100%; height: auto; }
+  :focus-visible { outline: 1px dashed var(--g); outline-offset: 3px; }
+}
+
+/* Kursor custom hanya untuk perangkat dengan mouse presisi */
+@media (hover: hover) and (pointer: fine) {
+  html.has-cursor, html.has-cursor body, html.has-cursor a, html.has-cursor button, html.has-cursor [role="button"] { cursor: none; }
+  html.has-cursor input, html.has-cursor textarea { cursor: none; caret-color: var(--g); }
+}
+
+/* Area dengan scroll sendiri tidak boleh ditelan Lenis */
+[data-lenis-prevent] { overscroll-behavior: contain; }
+
+/* ── VIEW TRANSITIONS ──────────────────────────────────────────────────────── */
+::view-transition-group(*) { animation-duration: .7s; animation-timing-function: var(--ease-out-expo); }
+::view-transition-old(root) { animation: vt-old .55s cubic-bezier(.7, 0, .3, 1) both; }
+::view-transition-new(root) { animation: vt-glitch-in .75s cubic-bezier(.16, 1, .3, 1) both; }
+html[data-vt="warp"]::view-transition-new(root) { animation: vt-warp-in .8s cubic-bezier(.7, 0, .2, 1) both; }
+html[data-vt="back"]::view-transition-new(root) { animation: vt-back-in .6s cubic-bezier(.16, 1, .3, 1) both; }
+/* elemen persisten: diam saat halaman berganti */
+::view-transition-group(tmux), ::view-transition-group(crt) { animation: none; }
+::view-transition-old(tmux), ::view-transition-old(crt) { display: none; }
+::view-transition-new(tmux), ::view-transition-new(crt) { animation: none; }
+/* judul halaman "morph" antar route */
+::view-transition-old(page-title) { animation: vt-title-out .35s ease both; }
+::view-transition-new(page-title) { animation: vt-title-in .6s .1s var(--ease-out-expo) both; }
+
+@keyframes vt-old {
+  0% { opacity: 1; transform: none; filter: none; }
+  25% { filter: brightness(1.9) saturate(1.6) hue-rotate(-25deg); }
+  100% { opacity: 0; transform: scale(.94) translateY(-1.5%); filter: blur(12px) brightness(.3); }
+}
+@keyframes vt-glitch-in {
+  0% { clip-path: inset(0 0 100% 0); transform: translateX(-1.5%); filter: brightness(3) contrast(1.4); }
+  12% { clip-path: inset(12% 0 64% 0); transform: translateX(2%); }
+  24% { clip-path: inset(48% 0 22% 0); transform: translateX(-2.5%); }
+  36% { clip-path: inset(0 0 44% 0); transform: translateX(1%); filter: brightness(1.8) hue-rotate(30deg); }
+  52% { clip-path: inset(0 0 12% 0); transform: none; filter: brightness(1.3); }
+  100% { clip-path: inset(0); transform: none; filter: none; }
+}
+@keyframes vt-warp-in {
+  0% { clip-path: circle(0% at var(--vt-x) var(--vt-y)); filter: brightness(3) saturate(2); }
+  60% { filter: brightness(1.2); }
+  100% { clip-path: circle(150% at var(--vt-x) var(--vt-y)); filter: none; }
+}
+@keyframes vt-back-in {
+  0% { clip-path: inset(100% 0 0 0); filter: brightness(2.5); }
+  100% { clip-path: inset(0); filter: none; }
+}
+@keyframes vt-title-out { to { opacity: 0; filter: blur(8px); transform: translateY(-10px); } }
+@keyframes vt-title-in { from { opacity: 0; filter: blur(10px); letter-spacing: .4em; } }
+
+/* ── UTIL GLOBAL ───────────────────────────────────────────────────────────── */
+.glow-text { text-shadow: 0 0 6px rgba(0, 255, 65, .55), 0 0 22px rgba(0, 255, 65, .25); }
+.chromatic { text-shadow: 2px 0 #ff003c, -2px 0 #00f0ff, 0 0 14px var(--g); }
+.noise-mask { -webkit-mask-image: radial-gradient(ellipse at center, #000 55%, transparent 100%); mask-image: radial-gradient(ellipse at center, #000 55%, transparent 100%); }
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}

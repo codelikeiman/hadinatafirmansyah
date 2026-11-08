@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="Firmansyah Hadinata — backend developer & systems engineer. Portofolio interaktif bergaya terminal: WebGPU, physics, globe, dan animasi sinematik." />
+    <title>firman@porto:~</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300..800;1,300..500&display=swap" rel="stylesheet" />
+    <style>
+      /* critical: cegah kilatan putih sebelum CSS & JS termuat */
+      html,body{margin:0;background:#000;color:#2dff6a}
+      .boot-fallback{position:fixed;inset:0;display:grid;place-items:center;font:12px/1.8 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.2em;color:#1fa64a}
+      .boot-fallback i{display:inline-block;width:.6em;height:1em;margin-left:.4em;vertical-align:-2px;background:#00ff41;box-shadow:0 0 12px #00ff41;animation:bf 1s steps(1) infinite}
+      @keyframes bf{50%{opacity:0}}
+    </style>
+  </head>
+  <body>
+    <div id="root"><div class="boot-fallback"><span>BOOTING FIRMAN.OS<i></i></span></div></div>
+    <noscript><p style="padding:24px;font-family:monospace">Firman.OS butuh JavaScript untuk boot. Aktifkan JavaScript lalu muat ulang halaman.</p></noscript>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
