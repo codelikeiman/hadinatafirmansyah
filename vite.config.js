@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -36,8 +36,24 @@ function esToolkitCompatEsm() {
   }
 }
 
-export default defineConfig({
-  plugins: [esToolkitCompatEsm(), react(), tailwindcss()],
+/**
+ * URL absolut situs untuk tag Open Graph / Twitter di index.html (crawler WhatsApp,
+ * Telegram, dll. butuh URL gambar absolut). Ganti lewat VITE_SITE_URL bila domain berubah.
+ */
+const DEFAULT_SITE_URL = 'https://hadinatafirmansyah.vercel.app'
+function siteUrlFrom(mode) {
+  const env = loadEnv(mode, process.cwd(), '')
+  return (env.VITE_SITE_URL || DEFAULT_SITE_URL).replace(/\/+$/, '')
+}
+function siteMeta(siteUrl) {
+  return {
+    name: 'site-meta',
+    transformIndexHtml: html => html.replaceAll('__SITE_URL__', siteUrl),
+  }
+}
+
+export default defineConfig(({ mode }) => ({
+  plugins: [esToolkitCompatEsm(), react(), tailwindcss(), siteMeta(siteUrlFrom(mode))],
   optimizeDeps: {
     rolldownOptions: { plugins: [esToolkitCompatEsm()] },
   },
@@ -54,4 +70,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

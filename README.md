@@ -77,9 +77,20 @@ Salin `.env.example` ke `.env.local`:
 
 | Variabel | Fungsi |
 |---|---|
+| `VITE_SITE_URL` | Domain publik untuk tag Open Graph (link preview). Default: `https://hadinatafirmansyah.vercel.app`. |
 | `VITE_SPLINE_SCENE` | URL `.splinecode` untuk `/holo`. Default: scene demo resmi Spline. |
 | `VITE_UNICORN_PROJECT_ID` | Project ID Unicorn Studio. Jika kosong, dipakai shader dithering OGL. |
 | `VITE_RIVE_SRC`, `VITE_RIVE_STATE_MACHINE`, `VITE_RIVE_INPUT` | File `.riv` untuk `/lab`. Default: contoh resmi `vehicles.riv`. |
+
+## Link preview (WhatsApp, Telegram, LinkedIn, X)
+
+`index.html` memuat tag Open Graph dan Twitter Card lengkap. Gambar pratinjaunya ada di
+`public/og-image.jpg` (1200×630, ±135 KB, di bawah batas ±300 KB WhatsApp), dan ikonnya di `public/apple-touch-icon.png`
+serta `public/favicon.svg`. URL gambar ditulis absolut dari `VITE_SITE_URL`. Jika domain berubah, set variabel itu lalu build ulang.
+
+WhatsApp menyimpan cache pratinjau per URL. Kalau link lama masih tampil tanpa gambar setelah deploy,
+bagikan versi URL yang sedikit berbeda (misalnya `https://hadinatafirmansyah.vercel.app/?v=2`), atau
+minta scrape ulang lewat Facebook Sharing Debugger.
 
 ## Mengubah konten
 
